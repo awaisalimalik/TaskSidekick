@@ -9,8 +9,8 @@ interface FinancialData {
 
 interface FinancialSummaryProps {
   financialData: FinancialData;
-  currentPeriod: string; // Add currentPeriod prop
-  totalPeriods: number; // Add totalPeriods prop
+  currentPeriod: string; 
+  totalPeriods: number; 
   timeRemaining: number; // Add timeRemaining prop (in seconds)
 }
 
