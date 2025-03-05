@@ -88,10 +88,9 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, selectedPeriod, onTaskAction
         </tbody>
       </table>
 
-      {/* Acknowledge Button */}
-      <div className="mt-4 text-left cursor-pointer">
+       <div className="mt-4 text-left cursor-pointer">
         <button
-          className="bg-green-500 hover:bg-green-600 text-white px-2 py-2 rounded-lg font-semibold cursor-pointer "
+          className="bg-[#28a05c] hover:bg-green-600 text-white px-2 py-2 rounded-lg font-semibold cursor-pointer "
           onClick={() => onTaskAction(null, "acknowledge-all")}
         >
           Acknowledge All Tasks

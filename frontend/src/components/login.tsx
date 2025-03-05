@@ -11,16 +11,19 @@ interface FirstProps {
 function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
+  const [error, setError] = useState({ userId: false, pin: false, login: false });
+  const [isLoading, setIsLoading] = useState(false); 
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    setError({ userId: !userId, pin: !pin, login: false });
+
     if (!userId || !pin) {
-      alert("Please enter both User ID and PIN");
       return;
     }
 
+    setIsLoading(true);  
     try {
-      // ✅ Step 1: Check User Login
       const response = await fetch("http://localhost:5000/check-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -28,48 +31,42 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
       });
 
       if (!response.ok) {
-        alert("Invalid UserID or PIN. Please try again.");
+        setError((prev) => ({ ...prev, login: true }));
+        setIsLoading(false);  
         return;
       }
 
       const userData = await response.json();
-      console.log("User Data:", userData);
-      setUserData(userData); // ✅ Fix: Store as an object, not an array
+      setUserData(userData);
 
-      // ✅ Step 2: Fetch Financial Data
       const financialResponse = await fetch(
         `http://localhost:5000/get-financial?id=${userId}`
       );
       const financialData = await financialResponse.json();
-      console.log("Financial Data:", financialData);
-      setFinancialData(financialData); // ✅ Fix: Store as an object, not an array
+      setFinancialData(financialData);
 
-      // ✅ Step 3: Fetch Task Data
       const taskResponse = await fetch(
         `http://localhost:5000/get-tasks?id=${userId}`
       );
       const taskData = await taskResponse.json();
-      console.log("Task Data:", taskData);
-      setTaskData(taskData); // ✅ Fix: Store as an array
+      setTaskData(taskData);
 
-      // ✅ Step 4: Store in Local Storage
       localStorage.setItem("userData", JSON.stringify(userData));
       localStorage.setItem("financialData", JSON.stringify(financialData));
       localStorage.setItem("taskData", JSON.stringify(taskData));
 
-      // ✅ Step 5: Redirect to Dashboard
       navigate("/dashboard");
 
-      // Clear input fields
       setUserId("");
       setPin("");
     } catch (error) {
       console.error("Error:", error);
-      alert("An error occurred. Please try again.");
+      setError((prev) => ({ ...prev, login: true }));
+    } finally {
+      setIsLoading(false); 
     }
   };
 
-  // Function to handle Enter key press
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleLogin();
@@ -86,30 +83,52 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
           <div className="login-part">
             <div className="container" id="loginPage">
               <h1 className="log">Login</h1>
+              <div>
+                <label className="yu" htmlFor="loginid">UserID</label>
+                <input
+                  type="text"
+                  id="loginid"
+                  placeholder="Enter your user ID"
+                  value={userId}
+                  onChange={(e) => {
+                    setUserId(e.target.value);
+                    setError((prev) => ({ ...prev, userId: false }));
+                  }}
+                  onKeyDown={handleKeyPress}
+                />
+                {error.userId && <span className="error">This field is required</span>}
+              </div>
 
-              <label htmlFor="loginid">UserID</label>
-              <input
-                type="text"
-                id="loginid"
-                placeholder="Enter your user ID"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                onKeyDown={handleKeyPress} // Handle Enter key press
-              />
+              <div>
+                <label htmlFor="loginPassword">PIN</label>
+                <input
+                  type="password"
+                  id="loginPassword"
+                  placeholder="Enter your PIN"
+                  value={pin}
+                  onChange={(e) => {
+                    setPin(e.target.value);
+                    setError((prev) => ({ ...prev, pin: false }));
+                  }}
+                  onKeyDown={handleKeyPress}
+                />
+                {error.pin && <span className="error">This field is required</span>}
+              </div>
 
-              <label htmlFor="loginPassword">PIN</label>
-              <input
-                type="password"
-                id="loginPassword"
-                placeholder="Enter your PIN"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                onKeyDown={handleKeyPress} // Handle Enter key press
-              />
-
-              <button className="login-btn" onClick={handleLogin}>
-                Login
-              </button>
+              <button className="login-btn" onClick={handleLogin} disabled={isLoading}>
+  {isLoading ? (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 512 512"
+      className="spinner"
+    >
+      <path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z"/>
+    </svg>
+  ) : (
+    "Login"
+  )}
+</button>
+              {error.login && <span className="error">Invalid UserID or PIN</span>}
             </div>
           </div>
         </div>

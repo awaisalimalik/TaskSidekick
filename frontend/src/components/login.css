@@ -10,13 +10,15 @@ img {
     object-fit: cover;
 }
 
-.components {}
+ .components{
+    width: 100%;
+ }
 
 .log {
     color: #28a05c;
     font-weight: 500;
     font-size: 23px;
-    padding-bottom: 18px;
+    padding-bottom: 0px;
     line-height: 5;
     margin: 0;
     top: 0;
@@ -24,7 +26,7 @@ img {
 
 .login-part {
     width: 30%;
-    position: absolute;
+     position: absolute;
     top: 15%;
     height: fit-content;
      display: flex;
@@ -44,9 +46,10 @@ img {
 
 .error {
     color: red;
-    font-size: 14px;
-    padding-top: 5px;
-    margin-bottom: 10px;
+    font-size: 16px;
+    text-align: center;
+    padding-top: 0px;
+    margin-bottom: 0px;
 }
 
 .hjhj {
@@ -55,8 +58,8 @@ img {
 
 #loginid {
     width: 100%;
-    padding: 12px;
-    margin: 10px 0;
+    padding: 8px;
+    margin-top: 4px ;
     border: 1px solid #ccc;
     border-radius: 5px;
     box-sizing: border-box;
@@ -101,18 +104,47 @@ img {
     background-color: white;
 
 }
-
+.login-btn {
+    display: flex;
+    align-items: center; /* Vertically center */
+    justify-content: center; /* Horizontally center */
+    position: relative; /* Ensure the button is a positioning context */
+    padding: 10px 20px; /* Adjust padding as needed */
+  }
+  
+  .spinner {
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+  
+  .login-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
 #loginPassword {
     width: 100%;
-    padding: 12px;
-    margin: 10px 0;
+    padding: 8px;
+    margin-top: 4px ;
     background-color: white;
     border: 1px solid #ccc;
     border-radius: 5px;
     box-sizing: border-box;
     font-size: 16px;
 }
-
+.login-btn:disabled {
+    background-color:  #4CAF50;
+    cursor: not-allowed;
+  }
 
 .login-btn {
     width: 100%;
@@ -166,6 +198,11 @@ input:focus+.alert-message {
     display: block;
 }
 .login-container {
-    display: flex;
+     display: flex;
     justify-content: center;
+ }
+ .container{
+     display: flex;
+    flex-direction: column;
+    gap: 15px;
  }
