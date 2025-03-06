@@ -21,40 +21,54 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   timeRemaining,
 }) => {
   // Convert time remaining (in seconds) to minutes and seconds
-  const minutes = Math.floor(timeRemaining / 60);
+  const hours = Math.floor(timeRemaining / 3600);
+  const minutes = Math.floor((timeRemaining % 3600) / 60);
   const seconds = timeRemaining % 60;
+
+  // Format time with leading zeros
+  const formattedHours = hours.toString().padStart(2, "0");
+  const formattedMinutes = minutes.toString().padStart(2, "0");
+  const formattedSeconds = seconds.toString().padStart(2, "0");
 
   // Calculate progress percentage
   const totalTime = 6 * 60 * 60; // 6 hours in seconds
   const progressPercentage = ((totalTime - timeRemaining) / totalTime) * 100;
 
+  // Format financial values with commas and 2 decimal places
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   return (
     <div className="bg-white shadow-md rounded-lg p-4 mt-4">
       <h2 className="text-xl font-semibold">Financial Summary</h2>
       <div className="mt-2 p-4 bg-gray-100 flex flex-col rounded-xl gap-[10px]">
-        <div className="flex gap-[10px]  w-full">
-          <div className="bg-green-200  w-full p-2">
-            Allowance: ${financialData.allowance}
+        <div className="flex gap-[10px] w-full">
+          <div className="bg-green-200 w-full p-2">
+            Allowance: ${formatCurrency(financialData.allowance)}
           </div>
-          <div className="bg-yellow-100  w-full p-2">
-            Commission: ${financialData.commission}
+          <div className="bg-yellow-100 w-full p-2">
+            Commission: ${formatCurrency(financialData.commission)}
           </div>
         </div>
-        <div className="flex gap-[10px]  w-full">
-          <div className="bg-red-100 w-full p-2">Spent: ${financialData.spent}</div>
+        <div className="flex gap-[10px] w-full">
+          <div className="bg-red-100 w-full p-2">
+            Spent: ${formatCurrency(financialData.spent)}
+          </div>
           <div className="bg-orange-100 w-full p-2">
-            Remaining: ${financialData.remaining}
+            Remaining: ${formatCurrency(financialData.remaining)}
           </div>
         </div>
-
-
       </div>
 
       {/* Period Information */}
-      <div className="mt-1 ">
+      <div className="mt-1">
         <h2 className="text-xl pt-6 pb-4 font-semibold">Period Information</h2>
         <div className="mt-0 bg-gray-100 p-4 rounded-xl">
-          <div className="  ">
+          <div>
             Active Period: {currentPeriod} / {totalPeriods}
           </div>
           {/* Progress Bar */}
@@ -69,8 +83,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             ></div>
           </div>
           <div>
-            Time Remaining: {minutes.toString().padStart(2, "0")}:
-            {seconds.toString().padStart(2, "0")}
+            Time Remaining: {formattedHours}:{formattedMinutes}:{formattedSeconds}
           </div>
         </div>
       </div>

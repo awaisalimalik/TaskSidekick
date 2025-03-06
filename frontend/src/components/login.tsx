@@ -12,7 +12,7 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState({ userId: false, pin: false, login: false });
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
@@ -22,35 +22,87 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
       return;
     }
 
-    setIsLoading(true);  
+    setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/check-user", {
+      // Using the new login endpoint from the updated backend
+      const response = await fetch("http://localhost:5000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: userId, pin }),
+        body: JSON.stringify({ userId, pin }),
       });
 
       if (!response.ok) {
         setError((prev) => ({ ...prev, login: true }));
-        setIsLoading(false);  
+        setIsLoading(false);
         return;
       }
 
-      const userData = await response.json();
+      const loginData = await response.json();
+      
+      if (!loginData.success) {
+        setError((prev) => ({ ...prev, login: true }));
+        setIsLoading(false);
+        return;
+      }
+
+      // Format user data to match your existing structure
+      const userData = {
+        id: loginData.userId,
+        firstName: loginData.name
+      };
+      
       setUserData(userData);
 
-      const financialResponse = await fetch(
-        `http://localhost:5000/get-financial?id=${userId}`
+      // Get user financial data and task data using the new endpoints
+      const userDataResponse = await fetch(
+        `http://localhost:5000/getUserData?userId=${loginData.userId}`
       );
-      const financialData = await financialResponse.json();
+      
+      if (!userDataResponse.ok) {
+        throw new Error("Failed to fetch user data");
+      }
+      
+      const userDataResult = await userDataResponse.json();
+      
+      // Format financial data to match your existing structure
+      const financialData = {
+        id: loginData.userId,
+        allowance: userDataResult.financial.allowance,
+        commission: userDataResult.financial.commission,
+        spent: userDataResult.financial.spent,
+        remaining: userDataResult.financial.remaining
+      };
+      
       setFinancialData(financialData);
 
-      const taskResponse = await fetch(
-        `http://localhost:5000/get-tasks?id=${userId}`
+      // Get tasks for the user
+      const tasksResponse = await fetch(
+        `http://localhost:5000/getTasks?groupId=0`
       );
-      const taskData = await taskResponse.json();
+      
+      if (!tasksResponse.ok) {
+        throw new Error("Failed to fetch task data");
+      }
+      
+      const taskResult = await tasksResponse.json();
+      
+      // Format task data to match your existing structure
+      const taskData = taskResult.tasks.map((task: any) => ({
+        id: task.id,
+        taskLabel: task.board || "Task",
+        stock: task.stock || "",
+        type: task.type || "",
+        price: task.price || 0,
+        extra: task.extra || "",
+        quantity: task.quantity || 0,
+        totalPrice: task.cost || 0,
+        period: "1", // Default to period 1
+        userId: loginData.userId
+      }));
+      
       setTaskData(taskData);
 
+      // Store data in localStorage
       localStorage.setItem("userData", JSON.stringify(userData));
       localStorage.setItem("financialData", JSON.stringify(financialData));
       localStorage.setItem("taskData", JSON.stringify(taskData));
@@ -63,7 +115,7 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
       console.error("Error:", error);
       setError((prev) => ({ ...prev, login: true }));
     } finally {
-      setIsLoading(false); 
+      setIsLoading(false);
     }
   };
 
@@ -116,18 +168,18 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
               </div>
 
               <button className="login-btn" onClick={handleLogin} disabled={isLoading}>
-  {isLoading ? (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 512 512"
-      className="spinner"
-    >
-      <path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z"/>
-    </svg>
-  ) : (
-    "Login"
-  )}
-</button>
+                {isLoading ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 512 512"
+                    className="spinner"
+                  >
+                    <path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z" />
+                  </svg>
+                ) : (
+                  "Login"
+                )}
+              </button>
               {error.login && <span className="error">Invalid UserID or PIN</span>}
             </div>
           </div>

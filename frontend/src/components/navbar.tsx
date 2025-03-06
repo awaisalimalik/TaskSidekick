@@ -7,7 +7,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ onLogout }) => {
   return (
     <nav className="flex items-center justify-between bg-white text-[#28a05c] px-6 py-4 shadow-lg">
-      <div className=" text-[20px] leading-[2px] font-bold flex items-center gap-4 cursor-pointer">
+      <div className=" text-[20px] font-sans leading-[2px] font-bold flex items-center gap-4 cursor-pointer">
         <div className="w-auto px-4 h-10 bg-white text-[#28a05c] flex items-center justify-center rounded-full font-bold">
           Task Sidekick
         </div>
