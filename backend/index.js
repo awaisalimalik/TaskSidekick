@@ -1,8 +1,8 @@
 import express from "express";
 import cors from "cors";
-import fetch from "node-fetch";
-import csv from "csv-parser";
-import { Readable } from "stream";
+import { google } from "googleapis";
+import fs from "fs";
+import path from "path";
 
 const app = express();
 
@@ -16,8 +16,8 @@ app.use(
 );
 app.use(express.json());
 
-// Using a single CSV file URL for the entire spreadsheet
-const SPREADSHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR1_-Z4GKyatzrb3JtWiCWyk7ksCtqAGtW8DfcrOFOTuTnCi9yPZJMXKS-_Rsp8je-uwlOjMKEsLT5H/pub?output=csv";
+// Replace this with your actual Spreadsheet ID
+const SPREADSHEET_ID = "1j-M4aEe8fjQoctgYMVZzxnZFjmHxRb1aIHZLOokK2sU";
 
 // Google Apps Script web app URL (for write operations)
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzYQo27tVk2HByyOPKcovQuSH43weKxiqjOnUxbOIqEqEKquzepKv7qChNCMiMdcFK7/exec";
@@ -25,9 +25,31 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzYQo27tVk2HB
 // Store parsed data in memory to avoid fetching repeatedly
 let cachedData = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_DURATION = 5 * 60 * 1000;
 
-// Helper function to fetch CSV data and process all sheets
+// Initialize Google Sheets API
+async function getAuthClient() {
+  try {
+    // You need to download this from Google Cloud Console
+    const credentialsPath = path.join(process.cwd(), 'credentials.json');
+    
+    // For service account credentials
+    if (fs.existsSync(credentialsPath)) {
+      const auth = new google.auth.GoogleAuth({
+        keyFile: credentialsPath,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+      return auth.getClient();
+    } 
+    
+    throw new Error("No authentication method available");
+  } catch (error) {
+    console.error("Error setting up auth:", error);
+    throw error;
+  }
+}
+
+// Helper function to fetch all sheets data
 const fetchAndProcessData = async () => {
   const currentTime = Date.now();
   
@@ -37,44 +59,72 @@ const fetchAndProcessData = async () => {
   }
   
   try {
-    console.log("Fetching spreadsheet data from:", SPREADSHEET_CSV_URL);
-    const response = await fetch(SPREADSHEET_CSV_URL);
     
-    if (!response.ok) {
-      console.error(`Response status: ${response.status} ${response.statusText}`);
-      throw new Error(`Failed to fetch CSV data: ${response.statusText}`);
-    }
-
-    const csvText = await response.text();
-    console.log(`CSV data received (sample): ${csvText.substring(0, 200)}...`);
+    // Get auth client
+    const authClient = await getAuthClient();
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
     
-    // Parse the CSV data
-    const stream = Readable.from(csvText);
-    const rows = await new Promise((resolve, reject) => {
-      const results = [];
-      stream
-        .pipe(csv())
-        .on("data", (row) => results.push(row))
-        .on("end", () => {
-          console.log(`Parsed ${results.length} rows from CSV`);
-          resolve(results);
-        })
-        .on("error", (err) => {
-          console.error("Error parsing CSV:", err);
-          reject(err);
-        });
+    // First, get metadata about all sheets in the spreadsheet
+    const metadata = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
     });
     
-    // Process the rows into structured data
-    // This is a simplified approach to work with a single sheet
-    // We'll treat the first column as a "sheet identifier"
+    const allSheets = metadata.data.sheets;
     
+    // Process each required sheet
+    const sheetData = {};
+    const requiredSheets = ['user_data', 'budget', 'task', 'history', 'payscale'];
+    
+    for (const sheet of allSheets) {
+      const sheetName = sheet.properties.title;
+      
+      // Only process sheets we need
+      if (requiredSheets.includes(sheetName)) {
+        
+        // Get all data from this sheet
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: sheetName,
+        });
+        
+        const rows = response.data.values;
+        
+        if (rows && rows.length > 0) {
+          // Convert to array of objects (first row as headers)
+          const headers = rows[0];
+          const data = [];
+          
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const item = {};
+            
+            for (let j = 0; j < headers.length; j++) {
+              // Only create properties for cells that have values
+              if (j < row.length && row[j] !== undefined && row[j] !== '') {
+                item[headers[j]] = row[j];
+              }
+            }
+            
+            // Only add row if it's not empty
+            if (Object.keys(item).length > 0) {
+              data.push(item);
+            }
+          }
+          
+          sheetData[sheetName] = data;
+        } else {
+          sheetData[sheetName] = [];
+        }
+      }
+    }
+    
+    // Organize data by sheet type
     const processedData = {
-      user_data: rows.filter(row => row["name*"] !== undefined), // User data has a name* column
-      budget: rows.filter(row => row["Label"] !== undefined),    // Budget data has a Label column
-      task: rows.filter(row => row["BOARD"] !== undefined),      // Task data has a BOARD column
-      history: rows.filter(row => row["PURCHASE DATE"] !== undefined), // History has PURCHASE DATE
-      payscale: rows.filter(row => row["rank"] !== undefined),   // Payscale has rank column
+      user_data: sheetData.user_data || [],
+      budget: sheetData.budget || [],
+      task: sheetData.task || [],
+      history: sheetData.history || [],
+      payscale: sheetData.payscale || [],
     };
     
     // Cache the processed data
@@ -277,14 +327,6 @@ app.get("/getTasks", async (req, res) => {
 
 /**
  * Acknowledge a task (update financial data)
- * 
- * This is a critical function that updates the user's financial data according to
- * the client's requirements. It:
- * 1. Retrieves the user's rank
- * 2. Looks up the commission rate from the payscale sheet
- * 3. Calculates the task cost
- * 4. Updates the commission (CREDIT1) and spent (DEBIT1) values
- * 5. Logs the transaction to the history sheet
  */
 app.post("/acknowledgeTask", async (req, res) => {
   const { userId, taskId, quantity = 1 } = req.body;
@@ -332,8 +374,7 @@ app.post("/acknowledgeTask", async (req, res) => {
     const newCommission = currentCommission + earnedCommission;
     const newSpent = currentSpent + taskCost;
     
-    // Since we can't directly update the Google Sheet from our backend,
-    // we'll post to the Google Apps Script web app to handle the update
+    // Post to Google Apps Script to handle the update
     const result = await postToGoogleScript("acknowledgeTask", {
       userId,
       taskId,
@@ -757,11 +798,7 @@ app.post("/getUserData", async (req, res) => {
 });
 
 // Start Server
-const PORT = 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Serving data from: ${SPREADSHEET_CSV_URL}`);
-  console.log(`Using Google Script for updates: ${GOOGLE_SCRIPT_URL}`);
-  console.log(`To test the server, try: http://localhost:${PORT}/get-users`);
-  console.log("Make sure your frontend is running on http://localhost:5173");
 });

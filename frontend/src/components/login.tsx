@@ -25,7 +25,7 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
     setIsLoading(true);
     try {
       // Using the new login endpoint from the updated backend
-      const response = await fetch("http://localhost:5000/login", {
+      const response = await fetch("http://localhost:5001/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, pin }),
@@ -55,7 +55,7 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
 
       // Get user financial data and task data using the new endpoints
       const userDataResponse = await fetch(
-        `http://localhost:5000/getUserData?userId=${loginData.userId}`
+        `http://localhost:5001/getUserData?userId=${loginData.userId}`
       );
       
       if (!userDataResponse.ok) {
@@ -77,7 +77,7 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
 
       // Get tasks for the user
       const tasksResponse = await fetch(
-        `http://localhost:5000/getTasks?groupId=0`
+        `http://localhost:5001/getTasks?groupId=0`
       );
       
       if (!tasksResponse.ok) {

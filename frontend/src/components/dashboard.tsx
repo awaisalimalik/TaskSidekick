@@ -5,9 +5,8 @@ import FinancialSummary from "./financialSummary";
 import TaskList from "./taskList";
 import BarSection from "./bar";
 
-interface DashboardProps {}
 
-const Dashboard: React.FC<DashboardProps> = () => {
+const Dashboard = () => {
   const [localUserData, setLocalUserData] = useState<any | null>(null);
   const [localFinancialData, setLocalFinancialData] = useState<any | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -59,13 +58,14 @@ const Dashboard: React.FC<DashboardProps> = () => {
     setIsLoading(true);
     try {
       // First, get user financial data using the new endpoint
-      const financialResponse = await fetch(`http://localhost:5000/getUserData?userId=${userId}`);
+      const financialResponse = await fetch(`http://localhost:5001/getUserData?userId=${userId}`);
       
       if (!financialResponse.ok) {
         throw new Error(`Error fetching financial data: ${financialResponse.statusText}`);
       }
       
       const financialData = await financialResponse.json();
+      console.log("🚀 ~ fetchFinancialAndTasks ~ financialData:", financialData)
       
       if (financialData.success) {
         setLocalFinancialData({
@@ -88,7 +88,7 @@ const Dashboard: React.FC<DashboardProps> = () => {
       }
 
       // Then, get periods from the user's active task groups
-      const periodsResponse = await fetch(`http://localhost:5000/getPeriods?userId=${userId}`);
+      const periodsResponse = await fetch(`http://localhost:5001/getPeriods?userId=${userId}`);
       
       if (periodsResponse.ok) {
         const periodsData = await periodsResponse.json();
@@ -100,7 +100,7 @@ const Dashboard: React.FC<DashboardProps> = () => {
       }
 
       // Finally, get tasks using the new endpoint
-      const tasksResponse = await fetch(`http://localhost:5000/getTasks?groupId=0`);
+      const tasksResponse = await fetch(`http://localhost:5001/getTasks?groupId=0`);
       
       if (!tasksResponse.ok) {
         throw new Error(`Error fetching tasks: ${tasksResponse.statusText}`);
@@ -149,7 +149,7 @@ const Dashboard: React.FC<DashboardProps> = () => {
     
     if (action === "acknowledge") {
       try {
-        const response = await fetch("http://localhost:5000/acknowledgeTask", {
+        const response = await fetch("http://localhost:5001/acknowledgeTask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -200,7 +200,7 @@ const Dashboard: React.FC<DashboardProps> = () => {
       // Process each task sequentially
       for (const task of currentPeriodTasks) {
         try {
-          const response = await fetch("http://localhost:5000/acknowledgeTask", {
+          const response = await fetch("http://localhost:5001/acknowledgeTask", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
