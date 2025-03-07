@@ -19,25 +19,74 @@ interface TaskListProps {
   tasks: Task[];
   selectedPeriod: string;
   onTaskAction: (task: Task | null, action: string) => void;
+  timeRemaining?: number; // Add timeRemaining as an optional prop
 }
 
-const TaskList: React.FC<TaskListProps> = ({ tasks, selectedPeriod, onTaskAction }) => {
-  const [timeRemaining, setTimeRemaining] = useState<number>(6 * 60 * 60); // Set countdown timer to 6 hours
+const TaskList: React.FC<TaskListProps> = ({
+  tasks,
+  selectedPeriod,
+  onTaskAction,
+  timeRemaining: externalTimeRemaining, // Rename to avoid conflict with state
+}) => {
+  // Initialize with external time or 0 if not provided
+  const [timeRemaining, setTimeRemaining] = useState<number>(
+    externalTimeRemaining || 0
+  );
 
-  useEffect(() => {
-    setTimeRemaining(6 * 60 * 60); // Reset timer to 6 hours whenever the period changes
-  }, [selectedPeriod]);
+  // Check if the user has periods - if selectedPeriod is "0", there are no periods
+  const hasPeriods = selectedPeriod !== "0";
 
+  // Update internal time when external time changes
   useEffect(() => {
+    if (externalTimeRemaining !== undefined) {
+      setTimeRemaining(externalTimeRemaining);
+    } else if (hasPeriods) {
+      // Fallback to 6 hours only if periods exist and no external time is provided
+      setTimeRemaining(2 * 60 * 60);
+    } else {
+      // No periods, set to 0
+      setTimeRemaining(0);
+    }
+  }, [externalTimeRemaining, selectedPeriod, hasPeriods]);
+
+  // Only use internal timer if no external time is provided
+  useEffect(() => {
+    // Skip timer if external time is provided or no periods exist
+    if (externalTimeRemaining !== undefined || !hasPeriods) return;
+
     const timer = setInterval(() => {
       setTimeRemaining((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => clearInterval(timer); // Cleanup interval on unmount
-  }, [selectedPeriod]); // Reset timer when period changes
+  }, [selectedPeriod, hasPeriods, externalTimeRemaining]);
 
-  // Progress bar width calculation
-  const progressWidth = `${(timeRemaining / (6 * 60 * 60)) * 100}%`;
+  // Format time remaining (in seconds) to HH:MM:SS
+  const formatTimeRemaining = (seconds: number) => {
+    if (!hasPeriods) return "00:00:00";
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Progress bar width calculation - if no periods, show 0%
+  // For users with periods, calculate based on 6 hour period duration
+  const periodDurationSeconds = 6 * 60 * 60; // 6 hours in seconds
+  const timeProgressPercentage = hasPeriods
+    ? Math.max(
+        0,
+        Math.min(
+          100,
+          ((periodDurationSeconds - timeRemaining) / periodDurationSeconds) *
+            100
+        )
+      )
+    : 0;
 
   // Get tasks for the selected period and ensure they have all necessary fields
   const filteredTasks = tasks
@@ -47,24 +96,30 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, selectedPeriod, onTaskAction
       if (!task.id) {
         task.id = `task-${index}`;
       }
-      
+
       // Use cost field as totalPrice if totalPrice is not defined
       if (!task.totalPrice && task.cost) {
         task.totalPrice = task.cost;
       }
-      
+
       // Calculate totalPrice if neither is defined but we have price and quantity
       if (!task.totalPrice && !task.cost && task.price && task.quantity) {
         task.totalPrice = task.price * task.quantity;
       }
-      
+
       // Set task label from the board field if needed
       if (!task.taskLabel && task.board) {
         task.taskLabel = task.board;
       }
-      
+
       return task;
     });
+
+  // Calculate total cost
+  const totalCost = filteredTasks.reduce(
+    (sum, task) => sum + (task.totalPrice || 0),
+    0
+  );
 
   const handleAcknowledge = (task: Task | null) => {
     if (task) {
@@ -76,72 +131,128 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, selectedPeriod, onTaskAction
 
   return (
     <div className="bg-white shadow-md rounded-lg p-4 mt-6">
-      {/* Title */}
-      <h2 className="text-xl font-semibold mb-2">Tasks (Period {selectedPeriod})</h2>
+      <h2 className="text-xl font-semibold mb-2">
+        Tasks (Period {selectedPeriod})
+      </h2>
+      <div className="mb-6">
+        <div className="flex justify-between  pt-2 pb-4">
+          {!hasPeriods && (
+            <span className="bg-gray-100 text-gray-700 px-3 py-1 border border-gray-300 text-sm font-medium">
+              No Periods
+            </span>
+          )}
+        </div>
 
-      {/* Countdown Timer */}
-      <div className="text-gray-700 font-medium mb-2">
-        Time Remaining: {Math.floor(timeRemaining / 3600)} hours {Math.floor((timeRemaining % 3600) / 60)} minutes {timeRemaining % 60} seconds
+        <div
+          className={`${
+            !hasPeriods ? "border border-gray-300 bg-gray-100" : ""
+          }`}
+        >
+          {!hasPeriods ? (
+            <div className="text-left p-2  ">
+                           <div className="font-medium">Time Remaining: 00:00:00</div>
+
+            </div>
+          ) : (
+            <>
+              <div className="font-medium">
+                Time Remaining: {formatTimeRemaining(timeRemaining)}
+              </div>{" "}
+              <div className="w-full bg-gray-200   h-5 mt-3 mb-1 overflow-hidden">
+                <div
+                  className="bg-green-500 h-5  "
+                  style={{ width: `${timeProgressPercentage}%` }}
+                ></div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="w-full bg-gray-200 h-4 overflow-hidden mb-4">
-        <div className="bg-blue-400 h-4 transition-all" style={{ width: progressWidth }}></div>
-      </div>
+      {/* Task List Section */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">
+          Tasks {hasPeriods ? `(Period ${selectedPeriod})` : ""}
+        </h2>
 
-      {/* Task Table */}
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-200 text-left">
-            <th className="p-2 border">Task Label</th>
-            <th className="p-2 border">Stock</th>
-            <th className="p-2 border">Type</th>
-            <th className="p-2 border">Price</th>
-            <th className="p-2 border">Extra</th>
-            <th className="p-2 border">Quantity</th>
-            <th className="p-2 border">Total Price</th>
-            <th className="p-2 border">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredTasks.length > 0 ? (
-            filteredTasks.map((task, index) => (
-              <tr key={task.id || index} className="border-b hover:bg-gray-100">
-                <td className="p-3 border">{task.taskLabel || `Task ${index + 1}`}</td>
-                <td className="p-3 border">{task.stock || '-'}</td>
-                <td className="p-3 border">{task.type || '-'}</td>
-                <td className="p-3 border">${(task.price || 0).toFixed(2)}</td>
-                <td className="p-3 border">{task.extra || '-'}</td>
-                <td className="p-3 border">{task.quantity || 0}</td>
-                <td className="p-3 border">${(task.totalPrice || 0).toFixed(2)}</td>
-                <td className="p-3 border">
-                  <button
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-sm"
-                    onClick={() => handleAcknowledge(task)}
-                  >
-                    Ack
-                  </button>
+        {/* Task Table */}
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-200 text-left">
+              <th className="p-2 border">Task Label</th>
+              <th className="p-2 border">Stock</th>
+              <th className="p-2 border">Type</th>
+              <th className="p-2 border">Price</th>
+              <th className="p-2 border">Extra</th>
+              <th className="p-2 border">Quantity</th>
+              <th className="p-2 border">Total Price</th>
+              <th className="p-2 border">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTasks.length > 0 ? (
+              filteredTasks.map((task, index) => (
+                <tr
+                  key={task.id || index}
+                  className="border-b hover:bg-gray-100"
+                >
+                  <td className="p-3 border">
+                    {task.taskLabel || `Task ${index + 1}`}
+                  </td>
+                  <td className="p-3 border">{task.stock || "-"}</td>
+                  <td className="p-3 border">{task.type || "-"}</td>
+                  <td className="p-3 border">
+                    ${(task.price || 0).toFixed(2)}
+                  </td>
+                  <td className="p-3 border">{task.extra || "-"}</td>
+                  <td className="p-3 border">{task.quantity || 0}</td>
+                  <td className="p-3 border">
+                    ${(task.totalPrice || 0).toFixed(2)}
+                  </td>
+                  <td className="p-3 border">
+                    <button
+                      className="bg-blue-500 hover:bg-blue-600 active:bg-[#6dad70] cursor-pointer text-white px-2 py-1 rounded text-sm"
+                      onClick={() => handleAcknowledge(task)}
+                    >
+                      Ack
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={8} className="p-3 text-center text-gray-500">
+                  {hasPeriods
+                    ? "No tasks available for this period."
+                    : "No tasks available. Periods need to be configured to view tasks."}
                 </td>
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan={8} className="p-3 text-center text-gray-500">
-                No tasks available for this period.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
 
-      <div className="mt-4 text-left cursor-pointer">
-        <button
-          className="bg-[#28a05c] hover:bg-green-600 text-white px-2 py-2 rounded-lg font-semibold cursor-pointer"
-          onClick={() => handleAcknowledge(null)}
-          disabled={filteredTasks.length === 0}
-        >
-          Acknowledge All Tasks
-        </button>
+            {filteredTasks.length > 0 && (
+              <tr className="bg-gray-100">
+                <td colSpan={6} className="p-3 text-right font-medium">
+                  Total:
+                </td>
+                <td className="p-3 border font-bold">
+                  ${totalCost.toFixed(2)}
+                </td>
+                <td className="p-3 border"></td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {filteredTasks.length > 0 && (
+          <div className="mt-4 text-left">
+            <button
+              className="bg-[#28a05c] hover:bg-[#6dad70] active:bg-blue-700 text-white px-4 py-2 cursor-pointer rounded-lg font-semibold"
+              onClick={() => handleAcknowledge(null)}
+            >
+              Acknowledge All Tasks
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
