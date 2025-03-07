@@ -6,7 +6,6 @@ import path from "path";
 
 const app = express();
 
-// Enable CORS for the frontend
 app.use(
   cors({
     origin: "http://localhost:5173",
