@@ -5,4 +5,4 @@
 # Ignore package-lock.json from backend and frontend
 /backend/package-lock.json
 /frontend/package-lock.json
-/backend/credentials.json
+backend/credentials.json
