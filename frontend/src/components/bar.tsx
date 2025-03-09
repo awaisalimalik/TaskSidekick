@@ -1,11 +1,18 @@
 import React from "react";
 
 interface BarSectionProps {
-  setActiveTab: React.Dispatch<React.SetStateAction<"financialSummary" | "tasks">>;
+  setActiveTab: React.Dispatch<
+    React.SetStateAction<"financialSummary" | "tasks">
+  >;
   activeTab: "financialSummary" | "tasks";
+  fetchTasks: () => Promise<void>;
 }
 
-const BarSection: React.FC<BarSectionProps> = ({ setActiveTab, activeTab }) => {
+const BarSection: React.FC<BarSectionProps> = ({
+  setActiveTab,
+  activeTab,
+  fetchTasks,
+}) => {
   return (
     <nav className="bg-[#28a05c] text-white p-4 shadow-md">
       <div className="container mx-auto flex justify-center items-center">
@@ -13,7 +20,12 @@ const BarSection: React.FC<BarSectionProps> = ({ setActiveTab, activeTab }) => {
           {(["financialSummary", "tasks"] as const).map((tab) => (
             <li key={tab} className="relative">
               <button
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  setActiveTab(tab);
+                  if (tab === "tasks") {
+                    fetchTasks();
+                  }
+                }}
                 className="relative text-white-800 font-[500] hover:text-gray-300 transition-all duration-300 cursor-pointer"
               >
                 <span className="relative inline-block">

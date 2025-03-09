@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
 import FinancialSummary from "./financialSummary";
@@ -14,27 +15,21 @@ interface PeriodInfo {
   workingHours?: number;
 }
 
-interface TaskGroup {
-  groupId: number;
-  label: string;
-  periodsPerDay: number;
-  allowance: number;
-}
-
 const Dashboard = () => {
   const [localUserData, setLocalUserData] = useState<any | null>(null);
-  const [localFinancialData, setLocalFinancialData] = useState<any | null>(null);
+  const [localFinancialData, setLocalFinancialData] = useState<any | null>(
+    null
+  );
   const [tasks, setTasks] = useState<any[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<string>("0");
-  const [activeTab, setActiveTab] = useState<"financialSummary" | "tasks">("financialSummary");
+  const [activeTab, setActiveTab] = useState<"financialSummary" | "tasks">(
+    "financialSummary"
+  );
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [periodInfo, setPeriodInfo] = useState<PeriodInfo | null>(null);
-  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
-  const [selectedTaskGroup, setSelectedTaskGroup] = useState<number>(0);
-  const [hasPeriods, setHasPeriods] = useState<boolean>(false);
   const navigate = useNavigate();
-  
+
   /**
    * Converts a time string in HH:MM format to minutes since midnight
    * @param timeStr Time string in HH:MM format
@@ -43,13 +38,13 @@ const Dashboard = () => {
   const convertTimeStringToMinutes = (timeStr: string): number => {
     let hours = 0;
     let minutes = 0;
-    
-    if (timeStr.includes(':')) {
-      const [hourStr, minuteStr] = timeStr.split(':');
+
+    if (timeStr.includes(":")) {
+      const [hourStr, minuteStr] = timeStr.split(":");
       hours = parseInt(hourStr, 10);
       minutes = parseInt(minuteStr, 10);
     }
-    
+
     return hours * 60 + minutes;
   };
 
@@ -62,9 +57,8 @@ const Dashboard = () => {
       try {
         const parsedUserData = JSON.parse(storedUserData);
         setLocalUserData(parsedUserData);
-        
-        fetchUserPeriodInfo(parsedUserData.id);
         fetchFinancialAndTasks(parsedUserData.id);
+        fetchUserPeriodInfo(parsedUserData.id);
       } catch (error) {
         console.error("Error parsing user data:", error);
         navigate("/login");
@@ -80,26 +74,31 @@ const Dashboard = () => {
    */
   const fetchUserPeriodInfo = async (userId: string) => {
     try {
-      const response = await fetch(`http://localhost:5001/getPeriods?userId=${userId}`);
-      
+      const response = await fetch(
+        `http://localhost:5001/getPeriods?userId=${userId}`
+      );
+
       if (!response.ok) {
         throw new Error(`Error fetching period data: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success && data.periods && data.periods.length > 0) {
-        // User has periods
-        setHasPeriods(true);
-        
         // Calculate current period based on current time
         const now = new Date();
-        const currentTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const currentTimeStr = now.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
         const currentTime = convertTimeStringToMinutes(currentTimeStr);
-        
+
         // Convert period strings to minutes for comparison
-        const periodTimes = data.periods.map((time: string) => convertTimeStringToMinutes(time));
-        
+        const periodTimes = data.periods.map((time: string) =>
+          convertTimeStringToMinutes(time)
+        );
+
         // Find the current period index (which period we're in or approaching)
         let currentPeriodIndex = 0;
         for (let i = 0; i < periodTimes.length; i++) {
@@ -112,39 +111,39 @@ const Dashboard = () => {
             currentPeriodIndex = 0;
           }
         }
-        
+
         // Calculate time remaining until next period
-        const nextPeriodTimeMinutes = 
-          currentTime < periodTimes[currentPeriodIndex] 
-            ? periodTimes[currentPeriodIndex] 
+        const nextPeriodTimeMinutes =
+          currentTime < periodTimes[currentPeriodIndex]
+            ? periodTimes[currentPeriodIndex]
             : periodTimes[0] + 24 * 60; // Add 24 hours if next period is tomorrow
-            
+
         let timeRemainingMinutes = nextPeriodTimeMinutes - currentTime;
-        
+
         // If next period is tomorrow, adjust the calculation
         if (nextPeriodTimeMinutes > 24 * 60) {
           timeRemainingMinutes = timeRemainingMinutes % (24 * 60);
         }
-        
+
         // Convert from minutes to seconds
         const timeRemainingSeconds = timeRemainingMinutes * 60;
-        
+
         // Format the current period string
         const currentPeriodNumber = (currentPeriodIndex + 1).toString();
-        
+
         // Format period time display (e.g. "14:30 - 20:00")
         let currentPeriodStartTime = "00:00";
         const currentPeriodEndTime = data.periods[currentPeriodIndex];
-        
+
         if (currentPeriodIndex > 0) {
           currentPeriodStartTime = data.periods[currentPeriodIndex - 1];
         } else if (data.periods.length > 0) {
           // If we're in the first period, use the last period of previous day as start
           currentPeriodStartTime = data.periods[data.periods.length - 1];
         }
-        
+
         const periodTimeDisplay = `${currentPeriodStartTime} - ${currentPeriodEndTime}`;
-        
+
         // Set period information
         setPeriodInfo({
           currentPeriod: periodTimeDisplay,
@@ -152,34 +151,27 @@ const Dashboard = () => {
           timeRemaining: timeRemainingSeconds,
           currentTime: currentTimeStr,
           periodsPerDay: data.periods.length,
-          workingHours: 8 // Default or from data if available
+          workingHours: 8, // Default or from data if available
         });
-        
+
         setCurrentPeriod(currentPeriodNumber);
         setTimeRemaining(timeRemainingSeconds);
-        
-        // Set task groups if available
-        if (data.userTaskGroups && data.userTaskGroups.length > 0) {
-          setTaskGroups(data.userTaskGroups);
-          setSelectedTaskGroup(data.userTaskGroups[0].groupId);
-        }
-        
-        console.log("Received period info:", data);
       } else {
-        // User has no periods
-        console.log("No periods found for this user");
-        setHasPeriods(false);
         setPeriodInfo({
           currentPeriod: "",
           currentPeriodNumber: "0",
           timeRemaining: 0,
-          currentTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+          currentTime: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
           periodsPerDay: 0,
-          workingHours: 0
+          workingHours: 0,
         });
         setCurrentPeriod("0");
         setTimeRemaining(0);
-        
+
         // Still try global periods as fallback
         fetchGlobalPeriodInfo();
       }
@@ -195,25 +187,28 @@ const Dashboard = () => {
   const fetchGlobalPeriodInfo = async () => {
     try {
       const response = await fetch("http://localhost:5001/getCurrentPeriod");
-      
+
       if (!response.ok) {
         throw new Error(`Error fetching period data: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success && data.periods && data.periods.length > 0) {
-        // Global periods exist
-        setHasPeriods(true);
-        
         // Use the same period calculation logic as in fetchUserPeriodInfo
         const now = new Date();
-        const currentTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const currentTimeStr = now.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
         const currentTime = convertTimeStringToMinutes(currentTimeStr);
-        
+
         // Convert period strings to minutes for comparison
-        const periodTimes = data.periods.map((time: string) => convertTimeStringToMinutes(time));
-        
+        const periodTimes = data.periods.map((time: string) =>
+          convertTimeStringToMinutes(time)
+        );
+
         // Find the current period index
         let currentPeriodIndex = 0;
         for (let i = 0; i < periodTimes.length; i++) {
@@ -226,39 +221,39 @@ const Dashboard = () => {
             currentPeriodIndex = 0;
           }
         }
-        
+
         // Calculate time remaining until next period
-        const nextPeriodTimeMinutes = 
-          currentTime < periodTimes[currentPeriodIndex] 
-            ? periodTimes[currentPeriodIndex] 
+        const nextPeriodTimeMinutes =
+          currentTime < periodTimes[currentPeriodIndex]
+            ? periodTimes[currentPeriodIndex]
             : periodTimes[0] + 24 * 60; // Add 24 hours if next period is tomorrow
-            
+
         let timeRemainingMinutes = nextPeriodTimeMinutes - currentTime;
-        
+
         // If next period is tomorrow, adjust the calculation
         if (nextPeriodTimeMinutes > 24 * 60) {
           timeRemainingMinutes = timeRemainingMinutes % (24 * 60);
         }
-        
+
         // Convert from minutes to seconds
         const timeRemainingSeconds = timeRemainingMinutes * 60;
-        
+
         // Format the current period string
         const currentPeriodNumber = (currentPeriodIndex + 1).toString();
-        
+
         // Format period time display
         let currentPeriodStartTime = "00:00";
         const currentPeriodEndTime = data.periods[currentPeriodIndex];
-        
+
         if (currentPeriodIndex > 0) {
           currentPeriodStartTime = data.periods[currentPeriodIndex - 1];
         } else if (data.periods.length > 0) {
           // If we're in the first period, use the last period of previous day as start
           currentPeriodStartTime = data.periods[data.periods.length - 1];
         }
-        
+
         const periodTimeDisplay = `${currentPeriodStartTime} - ${currentPeriodEndTime}`;
-        
+
         // Set period information
         setPeriodInfo({
           currentPeriod: periodTimeDisplay,
@@ -266,38 +261,40 @@ const Dashboard = () => {
           timeRemaining: timeRemainingSeconds,
           currentTime: currentTimeStr,
           periodsPerDay: data.periods.length,
-          workingHours: 8 // Default or from data if available
+          workingHours: 8, // Default or from data if available
         });
-        
+
         setCurrentPeriod(currentPeriodNumber);
         setTimeRemaining(timeRemainingSeconds);
       } else {
-        // No global periods exist either
-        console.log("No global periods found");
-        setHasPeriods(false);
         setPeriodInfo({
           currentPeriod: "",
           currentPeriodNumber: "0",
           timeRemaining: 0,
-          currentTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+          currentTime: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
           periodsPerDay: 0,
-          workingHours: 0
+          workingHours: 0,
         });
         setCurrentPeriod("0");
         setTimeRemaining(0);
       }
     } catch (error) {
       console.error("Error fetching global period data:", error);
-      
-      // No periods at all
-      setHasPeriods(false);
       setPeriodInfo({
         currentPeriod: "",
         currentPeriodNumber: "0",
         timeRemaining: 0,
-        currentTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+        currentTime: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
         periodsPerDay: 0,
-        workingHours: 0
+        workingHours: 0,
       });
       setCurrentPeriod("0");
       setTimeRemaining(0);
@@ -312,36 +309,40 @@ const Dashboard = () => {
     setIsLoading(true);
     try {
       // Get user financial data
-      const financialResponse = await fetch(`http://localhost:5001/getUserData?userId=${userId}`);
-      
+      const financialResponse = await fetch(
+        `http://localhost:5001/getUserData?userId=${userId}`
+      );
+
       if (!financialResponse.ok) {
-        throw new Error(`Error fetching financial data: ${financialResponse.statusText}`);
+        throw new Error(
+          `Error fetching financial data: ${financialResponse.statusText}`
+        );
       }
-      
+
       const financialData = await financialResponse.json();
-      
+
       if (financialData.success) {
         setLocalFinancialData({
           allowance: financialData.financial.allowance || 0,
           commission: financialData.financial.commission || 0,
           spent: financialData.financial.spent || 0,
-          remaining: financialData.financial.remaining || 0
+          remaining: financialData.financial.remaining || 0,
         });
-        
+
         // Update localStorage
-        localStorage.setItem("financialData", JSON.stringify({
-          id: userId,
-          allowance: financialData.financial.allowance || 0,
-          commission: financialData.financial.commission || 0,
-          spent: financialData.financial.spent || 0,
-          remaining: financialData.financial.remaining || 0
-        }));
+        localStorage.setItem(
+          "financialData",
+          JSON.stringify({
+            id: userId,
+            allowance: financialData.financial.allowance || 0,
+            commission: financialData.financial.commission || 0,
+            spent: financialData.financial.spent || 0,
+            remaining: financialData.financial.remaining || 0,
+          })
+        );
       } else {
         console.error("Financial data fetch failed:", financialData.message);
       }
-
-      // Get tasks
-      await fetchTasks(0, currentPeriod);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -354,23 +355,25 @@ const Dashboard = () => {
    * @param groupId The task group identifier
    * @param periodNumber The current period number
    */
-  const fetchTasks = async (groupId: number, periodNumber: string) => {
+  const fetchTasks = async () => {
     try {
       setIsLoading(true);
-      
+
       // Get tasks for the specific period and task group
-      const tasksResponse = await fetch(`http://localhost:5001/getTasks?groupId=${groupId}&periodNumber=${periodNumber}`);
-      
+      const tasksResponse = await fetch(
+        `http://localhost:5001/getTasks?periodNumber=${currentPeriod}`
+      );
+
       if (!tasksResponse.ok) {
         throw new Error(`Error fetching tasks: ${tasksResponse.statusText}`);
       }
-      
+
       const taskResult = await tasksResponse.json();
-      
+
       if (taskResult.success) {
         // Format tasks for the UI
         const formattedTasks = taskResult.tasks.map((task: any) => ({
-          id: task.id,
+          id: `${task.id}`,
           taskLabel: task.board || "Task",
           stock: task.stock || "",
           type: task.type || "",
@@ -378,12 +381,12 @@ const Dashboard = () => {
           extra: task.extra || "",
           quantity: task.quantity || 0,
           totalPrice: task.cost || 0,
-          period: periodNumber,
-          userId: localUserData?.id
+          period: currentPeriod,
+          userId: localUserData?.id,
         }));
-        
+
         setTasks(formattedTasks);
-        
+
         // Update localStorage
         localStorage.setItem("taskData", JSON.stringify(formattedTasks));
       } else {
@@ -397,62 +400,15 @@ const Dashboard = () => {
   };
 
   /**
-   * Set up timer to update remaining time counter
-   */
-  useEffect(() => {
-    // Only use timer if user has periods
-    if (!hasPeriods) return;
-    
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          // Time's up, fetch new period info
-          if (localUserData?.id) {
-            fetchUserPeriodInfo(localUserData.id);
-          } else {
-            fetchGlobalPeriodInfo();
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer); // Cleanup interval on unmount
-  }, [localUserData, hasPeriods]);
-
-  /**
-   * Refresh period data every 5 minutes as a backup
-   */
-  useEffect(() => {
-    if (localUserData) {
-      const refreshTimer = setInterval(() => {
-        fetchUserPeriodInfo(localUserData.id);
-      }, 5 * 60 * 1000); // Every 5 minutes
-      
-      return () => clearInterval(refreshTimer);
-    }
-  }, [localUserData]);
-
-  /**
-   * Fetch tasks when period or task group changes
-   */
-  useEffect(() => {
-    if (localUserData && currentPeriod && currentPeriod !== "0") {
-      fetchTasks(selectedTaskGroup, currentPeriod);
-    }
-  }, [currentPeriod, selectedTaskGroup, localUserData]);
-
-  /**
    * Handle task acknowledgment actions
    * @param task The task to acknowledge (null for acknowledging all tasks)
    * @param action The action to perform ("acknowledge" or "acknowledge-all")
    */
   const handleTaskAction = async (task: any, action: string) => {
     if (!localUserData) return;
-    
+
     setIsLoading(true);
-    
+
     if (action === "acknowledge") {
       try {
         const response = await fetch("http://localhost:5001/acknowledgeTask", {
@@ -461,12 +417,12 @@ const Dashboard = () => {
           body: JSON.stringify({
             userId: localUserData.id,
             taskId: task.id,
-            quantity: task.quantity || 1
+            currentPeriod: currentPeriod,
           }),
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           // Update financial data
           setLocalFinancialData({
@@ -475,21 +431,24 @@ const Dashboard = () => {
             spent: result.financial.spent || 0,
             remaining: result.financial.remaining || 0,
           });
-          
+
           // Update localStorage
-          localStorage.setItem("financialData", JSON.stringify({
-            id: localUserData.id,
-            allowance: result.financial.allowance || 0,
-            commission: result.financial.commission || 0,
-            spent: result.financial.spent || 0,
-            remaining: result.financial.remaining || 0
-          }));
-          
+          localStorage.setItem(
+            "financialData",
+            JSON.stringify({
+              id: localUserData.id,
+              allowance: result.financial.allowance || 0,
+              commission: result.financial.commission || 0,
+              spent: result.financial.spent || 0,
+              remaining: result.financial.remaining || 0,
+            })
+          );
+
           // Remove the acknowledged task from the list
-          setTasks(prevTasks => prevTasks.filter(t => t.id !== task.id));
-          
+          setTasks((prevTasks) => prevTasks.filter((t) => t.id !== task.id));
+
           // Update localStorage for tasks
-          const updatedTasks = tasks.filter(t => t.id !== task.id);
+          const updatedTasks = tasks.filter((t) => t.id !== task.id);
           localStorage.setItem("taskData", JSON.stringify(updatedTasks));
         } else {
           console.error("Task acknowledgment failed:", result.message);
@@ -501,23 +460,28 @@ const Dashboard = () => {
       }
     } else if (action === "acknowledge-all") {
       // Filter tasks for the current period
-      const currentPeriodTasks = tasks.filter(t => t.period === currentPeriod);
-      
+      const currentPeriodTasks = tasks.filter(
+        (t) => t.period === currentPeriod
+      );
+
       // Process each task sequentially
       for (const task of currentPeriodTasks) {
         try {
-          const response = await fetch("http://localhost:5001/acknowledgeTask", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: localUserData.id,
-              taskId: task.id,
-              quantity: task.quantity || 1
-            }),
-          });
-          
+          const response = await fetch(
+            "http://localhost:5001/acknowledgeTask",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: localUserData.id,
+                taskId: task.id,
+                quantity: task.quantity || 1,
+              }),
+            }
+          );
+
           const result = await response.json();
-          
+
           if (result.success) {
             // Update financial data
             setLocalFinancialData({
@@ -531,40 +495,19 @@ const Dashboard = () => {
           console.error(`Error acknowledging task ${task.id}:`, error);
         }
       }
-      
+
       // Remove all tasks for the current period
-      setTasks(prevTasks => prevTasks.filter(t => t.period !== currentPeriod));
-      
+      setTasks((prevTasks) =>
+        prevTasks.filter((t) => t.period !== currentPeriod)
+      );
+
       // Update localStorage
-      const updatedTasks = tasks.filter(t => t.period !== currentPeriod);
+      const updatedTasks = tasks.filter((t) => t.period !== currentPeriod);
       localStorage.setItem("taskData", JSON.stringify(updatedTasks));
       localStorage.setItem("financialData", JSON.stringify(localFinancialData));
-      
+
       setIsLoading(false);
     }
-  };
-
-  /**
-   * Format time remaining in seconds to HH:MM:SS format with leading zeros
-   * @param seconds Time in seconds
-   * @returns Formatted time string in HH:MM:SS format
-   */
-  const formatTimeRemaining = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  /**
-   * Handle task group selection change
-   * @param event The select element change event
-   */
-  const handleTaskGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const groupId = parseInt(event.target.value);
-    setSelectedTaskGroup(groupId);
-    fetchTasks(groupId, currentPeriod);
   };
 
   return (
@@ -572,47 +515,41 @@ const Dashboard = () => {
       <Navbar
         onLogout={() => {
           localStorage.clear();
-          sessionStorage.clear();
-          console.clear();
           navigate("/login");
-          window.location.reload();
         }}
       />
 
       {/* Tab Navigation */}
-      <BarSection setActiveTab={setActiveTab} activeTab={activeTab} />
+      <BarSection
+        fetchTasks={fetchTasks}
+        setActiveTab={setActiveTab}
+        activeTab={activeTab}
+      />
 
       <div className="p-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-800 text-center">
-          Welcome {localUserData?.firstName || "Guest"}
+          Welcome {localUserData?.name || "Guest"}
         </h1>
 
-        {/* Task Group Selection (only show in tasks tab) */}
-        {activeTab === "tasks" && taskGroups.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <label htmlFor="taskGroup" className="font-medium text-gray-700">
-                Task Group:
-              </label>
-              <select
-                id="taskGroup"
-                className="ml-4 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={selectedTaskGroup}
-                onChange={handleTaskGroupChange}
-              >
-                {taskGroups.map((group) => (
-                  <option key={group.groupId} value={group.groupId}>
-                    {group.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
         {isLoading && (
-          <div className="flex justify-center items-center mt-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          <div role="status" className="flex justify-center mt-4">
+            <svg
+              aria-hidden="true"
+              className="w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600"
+              viewBox="0 0 100 101"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                fill="currentColor"
+              />
+              <path
+                d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                fill="currentFill"
+              />
+            </svg>
+            <span className="sr-only">Loading...</span>
           </div>
         )}
 
@@ -627,7 +564,7 @@ const Dashboard = () => {
         )}
 
         {/* Task List Section */}
-        {activeTab === "tasks" && (
+        {activeTab === "tasks" && !isLoading && (
           <TaskList
             tasks={tasks}
             selectedPeriod={currentPeriod}

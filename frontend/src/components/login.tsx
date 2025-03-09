@@ -4,11 +4,10 @@ import "./login.css";
 
 interface FirstProps {
   setUserData: React.Dispatch<React.SetStateAction<any>>;
-  setFinancialData: React.Dispatch<React.SetStateAction<any>>;
-  setTaskData: React.Dispatch<React.SetStateAction<any>>;
+  
 }
 
-function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
+function First({ setUserData}: FirstProps) {
   const [userId, setUserId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState({ userId: false, pin: false, login: false });
@@ -48,7 +47,7 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
       // Format user data to match your existing structure
       const userData = {
         id: loginData.userId,
-        firstName: loginData.name
+        name: loginData.name
       };
       
       setUserData(userData);
@@ -72,40 +71,10 @@ function First({ setUserData, setFinancialData, setTaskData }: FirstProps) {
         spent: userDataResult.financial.spent,
         remaining: userDataResult.financial.remaining
       };
-      
-      setFinancialData(financialData);
-
-      // Get tasks for the user
-      const tasksResponse = await fetch(
-        `http://localhost:5001/getTasks?groupId=0`
-      );
-      
-      if (!tasksResponse.ok) {
-        throw new Error("Failed to fetch task data");
-      }
-      
-      const taskResult = await tasksResponse.json();
-      
-      // Format task data to match your existing structure
-      const taskData = taskResult.tasks.map((task: any) => ({
-        id: task.id,
-        taskLabel: task.board || "Task",
-        stock: task.stock || "",
-        type: task.type || "",
-        price: task.price || 0,
-        extra: task.extra || "",
-        quantity: task.quantity || 0,
-        totalPrice: task.cost || 0,
-        period: "1", // Default to period 1
-        userId: loginData.userId
-      }));
-      
-      setTaskData(taskData);
 
       // Store data in localStorage
       localStorage.setItem("userData", JSON.stringify(userData));
       localStorage.setItem("financialData", JSON.stringify(financialData));
-      localStorage.setItem("taskData", JSON.stringify(taskData));
 
       navigate("/dashboard");
 
