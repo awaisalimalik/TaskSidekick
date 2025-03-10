@@ -1,5 +1,4 @@
 .banner {
-    position: relative;
     width: 100%;
     height: 100vh;
 }
@@ -10,38 +9,43 @@ img {
     object-fit: cover;
 }
 
- .components{
+.components{
     width: 100%;
- }
+}
 
 .log {
     color: #28a05c;
     font-weight: 500;
     font-size: 23px;
     padding-bottom: 0px;
-    line-height: 5;
+    line-height: 3;
     margin: 0;
     top: 0;
 }
 
+#login{
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .login-part {
-    width: 30%;
-     position: absolute;
+    width: 90%;
+    max-width: 400px;
     top: 15%;
     height: fit-content;
-     display: flex;
+    display: flex;
     justify-content: center;
-
-     gap: 10px;
+    gap: 10px;
     background-color: transparent;
     border: 2px solid #4CAF50;
-    padding-top:  1px;
+    padding-top: 1px;
     padding-bottom: 34px;
     padding-left: 10px;
     padding-right: 10px;
     border-radius: 11px;
     color: #28a05c;
-
 }
 
 .error {
@@ -59,13 +63,12 @@ img {
 #loginid {
     width: 100%;
     padding: 8px;
-    margin-top: 4px ;
+    margin-top: 4px;
     border: 1px solid #ccc;
     border-radius: 5px;
     box-sizing: border-box;
     font-size: 16px;
     background-color: white;
-
 }
 
 #newUsername {
@@ -78,7 +81,6 @@ img {
     font-size: 16px;
     text-align: left;
     background-color: white;
-
 }
 
 #newEmail {
@@ -90,7 +92,6 @@ img {
     box-sizing: border-box;
     font-size: 16px;
     background-color: white;
- 
 }
 
 #newPassword {
@@ -102,49 +103,51 @@ img {
     box-sizing: border-box;
     font-size: 16px;
     background-color: white;
-
 }
+
 .login-btn {
     display: flex;
     align-items: center; /* Vertically center */
     justify-content: center; /* Horizontally center */
     position: relative; /* Ensure the button is a positioning context */
     padding: 10px 20px; /* Adjust padding as needed */
-  }
+}
   
-  .spinner {
+.spinner {
     width: 24px;
     height: 24px;
     animation: spin 1s linear infinite;
-  }
+}
   
-  @keyframes spin {
+@keyframes spin {
     0% {
       transform: rotate(0deg);
     }
     100% {
       transform: rotate(360deg);
     }
-  }
+}
   
-  .login-btn:disabled {
+.login-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
-  }
+}
+
 #loginPassword {
     width: 100%;
     padding: 8px;
-    margin-top: 4px ;
+    margin-top: 4px;
     background-color: white;
     border: 1px solid #ccc;
     border-radius: 5px;
     box-sizing: border-box;
     font-size: 16px;
 }
+
 .login-btn:disabled {
-    background-color:  #4CAF50;
+    background-color: #4CAF50;
     cursor: not-allowed;
-  }
+}
 
 .login-btn {
     width: 100%;
@@ -193,16 +196,64 @@ label {
     display: none;
 }
 
-
 input:focus+.alert-message {
     display: block;
 }
+
 .login-container {
-     display: flex;
+    position: absolute;
+    display: flex;
     justify-content: center;
- }
- .container{
-     display: flex;
+    width: 90%;
+}
+
+.container{
+    width: 100%;
+    display: flex;
     flex-direction: column;
     gap: 15px;
- }
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .login-part {
+        width: 85%;
+        max-width: 350px;
+    }
+    
+    .log {
+        font-size: 20px;
+        line-height: 2.5;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-part {
+        width: 90%;
+        max-width: 280px;
+        top: 10%;
+    }
+    
+    .log {
+        font-size: 18px;
+        line-height: 2;
+    }
+    
+    label {
+        font-size: 14px;
+    }
+    
+    #loginid, #loginPassword {
+        padding: 6px;
+        font-size: 14px;
+    }
+    
+    .login-btn {
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    .error {
+        font-size: 14px;
+    }
+}

@@ -36,11 +36,6 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Calculate period progress percentage
-  const periodProgressPercentage = hasPeriods
-    ? (parseInt(currentPeriod) / totalPeriods) * 100
-    : 0;
-
   // Determine total period duration (assuming 6 hours per period)
   const periodDurationSeconds = 6 * 60 * 60; // 6 hours in seconds
 

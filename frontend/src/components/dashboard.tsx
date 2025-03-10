@@ -68,6 +68,28 @@ const Dashboard = () => {
     }
   }, []);
 
+
+  useEffect(() => {
+    // Reset timer when period changes
+    setTimeRemaining(6 * 60 * 60);
+    
+    const periodTimer = setInterval(() => {
+      setCurrentPeriod((prevPeriod) => {
+        const nextPeriod = (parseInt(prevPeriod) % 3) + 1; // Cycle through periods 1, 2, 3
+        return nextPeriod.toString();
+      });
+    }, 6 * 60 * 60 * 1000); // 6 hours in milliseconds
+
+    return () => clearInterval(periodTimer); // Cleanup interval on unmount
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer); // Cleanup interval on unmount
+  }, [currentPeriod]); // Reset timer when period changes
   /**
    * Fetch period information specific to the user
    * @param userId The user's unique identifier
