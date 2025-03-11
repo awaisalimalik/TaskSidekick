@@ -167,8 +167,8 @@ const fetchAndProcessData = async () => {
     };
 
     // Cache the processed data
-    cachedData = processedData;
-    lastFetchTime = currentTime;
+    // cachedData = processedData;
+    // lastFetchTime = currentTime;
 
     return processedData;
   } catch (error) {
@@ -547,8 +547,8 @@ app.get("/getPeriods", async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    // Collect periods from active task groups
-    const periods = [];
+    // Use a Set to avoid duplicate periods
+    const uniquePeriods = new Set();
 
     // Check the binary flags (Activatetask, Activatetask1, etc.)
     for (let i = 0; i <= 9; i++) {
@@ -558,26 +558,25 @@ app.get("/getPeriods", async (req, res) => {
         // This budget record is active for the user
         const budgetRow = budgetData[i];
 
-        // Add periods from this budget row
+        // Add unique periods from this budget row
         ["Period 1", "Period 2", "Period 3", "Period 4"].forEach(
           (periodKey) => {
-            if (
-              budgetRow[periodKey] &&
-              periods.indexOf(budgetRow[periodKey]) === -1
-            ) {
-              periods.push(budgetRow[periodKey]);
+            if (budgetRow[periodKey]) {
+              uniquePeriods.add(budgetRow[periodKey].trim()); // Trim for consistency
             }
           }
         );
       }
     }
 
-    // Sort periods (assuming they're time strings)
-    periods.sort();
+    // Convert Set to sorted array
+    const sortedPeriods = [...uniquePeriods].sort();
+
+    console.log("Final periods:", sortedPeriods);
 
     return res.json({
       success: true,
-      periods: periods,
+      periods: sortedPeriods,
     });
   } catch (error) {
     console.error("Error fetching periods:", error);

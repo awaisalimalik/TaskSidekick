@@ -22,9 +22,11 @@ const Dashboard = () => {
   const [currentPeriod, setCurrentPeriod] = useState<string>("0");
   const [activeTab, setActiveTab] = useState<"financialSummary" | "tasks">("financialSummary");
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // Set to false initially
-  const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true); // Track initial load
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
   const [periodInfo, setPeriodInfo] = useState<PeriodInfo | null>(null);
+  const [periodTimes, setPeriodTimes] = useState<string[]>([]);
+  const [isWithinWorkingHours, setIsWithinWorkingHours] = useState<boolean>(false);
   const navigate = useNavigate();
 
   /**
@@ -43,6 +45,27 @@ const Dashboard = () => {
     }
 
     return hours * 60 + minutes;
+  };
+
+  /**
+   * Formats minutes since midnight to HH:MM
+   * @param minutes Minutes since midnight
+   * @returns Formatted time string
+   */
+  const formatMinutesToTimeString = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60) % 24;
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
+
+  /**
+   * Adds minutes to a time and handles day boundaries
+   * @param timeInMinutes Time in minutes since midnight
+   * @param minutesToAdd Minutes to add
+   * @returns New time in minutes, wrapping around midnight if needed
+   */
+  const addMinutesToTime = (timeInMinutes: number, minutesToAdd: number): number => {
+    return (timeInMinutes + minutesToAdd) % (24 * 60);
   };
 
   /**
@@ -96,34 +119,46 @@ const Dashboard = () => {
     loadFromLocalStorage();
   }, []);
 
+  // Replace the period cycling effect with one that checks periodically
   useEffect(() => {
-    // Reset timer when period changes
-    setTimeRemaining(6 * 60 * 60);
+    // Only start the timer if we have valid period info and are in an active period
+    if (periodInfo && periodInfo.currentPeriodNumber !== "0" && periodInfo.timeRemaining > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            // When time expires, refresh period info
+            if (localUserData) {
+              fetchUserPeriodInfo(localUserData.id);
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
 
-    const periodTimer = setInterval(() => {
-      setCurrentPeriod((prevPeriod) => {
-        const nextPeriod = (parseInt(prevPeriod) % 3) + 1; // Cycle through periods 1, 2, 3
-        return nextPeriod.toString();
-      });
-    }, 6 * 60 * 60 * 1000); // 6 hours in milliseconds
+      return () => clearInterval(timer); // Cleanup interval on unmount
+    }
+  }, [periodInfo, localUserData]);
 
-    return () => clearInterval(periodTimer); // Cleanup interval on unmount
-  }, []);
-
+  // Add a new effect that periodically refreshes period info
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    // Refresh period info every minute to handle period transitions
+    if (localUserData) {
+      const periodUpdateTimer = setInterval(() => {
+        fetchUserPeriodInfo(localUserData.id);
+      }, 60 * 1000); // Check every minute
+      
+      return () => clearInterval(periodUpdateTimer);
+    }
+  }, [localUserData]);
 
-    return () => clearInterval(timer); // Cleanup interval on unmount
-  }, [currentPeriod]); // Reset timer when period changes
-  
   /**
    * Fetch period information specific to the user
    * @param userId The user's unique identifier
    */
   const fetchUserPeriodInfo = async (userId: string) => {
     try {
+      // Use the existing getPeriods endpoint
       const response = await fetch(
         `http://localhost:5001/getPeriods?userId=${userId}`
       );
@@ -133,9 +168,17 @@ const Dashboard = () => {
       }
 
       const data = await response.json();
+      
+      console.log("Backend period data:", data);
+      console.log("Periods array:", data.periods);
 
       if (data.success && data.periods && data.periods.length > 0) {
-        // Calculate current period based on current time
+        const transactionsPerDay = data.periods.length;
+        setPeriodTimes(data.periods);
+        
+        console.log(`Found ${transactionsPerDay} periods:`, data.periods);
+        
+        // Get current time
         const now = new Date();
         const currentTimeStr = now.toLocaleTimeString([], {
           hour: "2-digit",
@@ -143,75 +186,119 @@ const Dashboard = () => {
           hour12: false,
         });
         const currentTime = convertTimeStringToMinutes(currentTimeStr);
-
-        // Convert period strings to minutes for comparison
-        const periodTimes = data.periods.map((time: string) =>
-          convertTimeStringToMinutes(time)
-        );
-
-        // Find the current period index (which period we're in or approaching)
-        let currentPeriodIndex = 0;
-        for (let i = 0; i < periodTimes.length; i++) {
-          if (currentTime < periodTimes[i]) {
-            currentPeriodIndex = i;
-            break;
-          }
-          // If we've passed all periods, we're approaching the first period of next day
-          if (i === periodTimes.length - 1) {
-            currentPeriodIndex = 0;
-          }
-        }
-
-        // Calculate time remaining until next period
-        const nextPeriodTimeMinutes =
-          currentTime < periodTimes[currentPeriodIndex]
-            ? periodTimes[currentPeriodIndex]
-            : periodTimes[0] + 24 * 60; // Add 24 hours if next period is tomorrow
-
-        let timeRemainingMinutes = nextPeriodTimeMinutes - currentTime;
-
-        // If next period is tomorrow, adjust the calculation
-        if (nextPeriodTimeMinutes > 24 * 60) {
-          timeRemainingMinutes = timeRemainingMinutes % (24 * 60);
-        }
-
-        // Convert from minutes to seconds
-        const timeRemainingSeconds = timeRemainingMinutes * 60;
-
-        // Format the current period string
-        const currentPeriodNumber = (currentPeriodIndex + 1).toString();
-
-        // Format period time display (e.g. "14:30 - 20:00")
-        let currentPeriodStartTime = "00:00";
-        const currentPeriodEndTime = data.periods[currentPeriodIndex];
-
-        if (currentPeriodIndex > 0) {
-          currentPeriodStartTime = data.periods[currentPeriodIndex - 1];
-        } else if (data.periods.length > 0) {
-          // If we're in the first period, use the last period of previous day as start
-          currentPeriodStartTime = data.periods[data.periods.length - 1];
-        }
-
-        const periodTimeDisplay = `${currentPeriodStartTime} - ${currentPeriodEndTime}`;
-
-        // Set period information
-        setPeriodInfo({
-          currentPeriod: periodTimeDisplay,
-          currentPeriodNumber: currentPeriodNumber,
-          timeRemaining: timeRemainingSeconds,
-          currentTime: currentTimeStr,
-          periodsPerDay: data.periods.length,
-          workingHours: 8, // Default or from data if available
-        });
-
-        setCurrentPeriod(currentPeriodNumber);
-        setTimeRemaining(timeRemainingSeconds);
+        console.log(`Current time: ${currentTimeStr} (${currentTime} minutes)`);
         
-        // Cache the current period
-        localStorage.setItem("currentPeriod", currentPeriodNumber);
+        // Always consider as within working hours for 24/7 operation
+        setIsWithinWorkingHours(true);
+        
+        // Calculate period durations based on transactions per day
+        const workingHours = 8; // Always use 8-hour workday
+        const hoursPerPeriod = workingHours / transactionsPerDay;
+        const minutesPerPeriod = hoursPerPeriod * 60;
+        
+        console.log(`Hours per period: ${hoursPerPeriod}, Minutes per period: ${minutesPerPeriod}`);
+        
+        // Convert period times to minutes
+        const periodStartTimes: number[] = data.periods.map((time: string): number => convertTimeStringToMinutes(time));
+        
+        // Calculate period end times (start time + duration)
+        const periodEndTimes = periodStartTimes.map(startTime => 
+          addMinutesToTime(startTime, minutesPerPeriod)
+        );
+        
+        // Format for display
+        const formattedPeriodRanges = periodStartTimes.map((startTime, index) => {
+          const endTime = periodEndTimes[index];
+          return `${formatMinutesToTimeString(startTime)} - ${formatMinutesToTimeString(endTime)}`;
+        });
+        
+        console.log("Period ranges:", formattedPeriodRanges);
+        
+        // Find current period
+        let currentPeriodIndex = -1;
+        
+        for (let i = 0; i < periodStartTimes.length; i++) {
+          const startTime = periodStartTimes[i];
+          const endTime = periodEndTimes[i];
+          
+          // Handle periods that don't cross midnight
+          if (startTime < endTime) {
+            if (currentTime >= startTime && currentTime < endTime) {
+              currentPeriodIndex = i;
+              console.log(`Found period ${i+1}: ${startTime} - ${endTime}`);
+              break;
+            }
+          } 
+          // Handle periods that cross midnight
+          else {
+            if (currentTime >= startTime || currentTime < endTime) {
+              currentPeriodIndex = i;
+              console.log(`Found period ${i+1} (crosses midnight): ${startTime} - ${endTime}`);
+              break;
+            }
+          }
+        }
+        
+        if (currentPeriodIndex !== -1) {
+          // Found an active period
+          const startTime = periodStartTimes[currentPeriodIndex];
+          const endTime = periodEndTimes[currentPeriodIndex];
+          const periodRange = formattedPeriodRanges[currentPeriodIndex];
+          
+          // Calculate time remaining
+          let timeRemainingMinutes;
+          
+          // If period crosses midnight and current time is after midnight
+          if (startTime > endTime && currentTime < endTime) {
+            timeRemainingMinutes = endTime - currentTime;
+          } 
+          // Normal case or after start time before midnight
+          else {
+            // Calculate time until end, wrapping around midnight if needed
+            if (currentTime <= endTime) {
+              timeRemainingMinutes = endTime - currentTime;
+            } else {
+              timeRemainingMinutes = (24 * 60 - currentTime) + endTime;
+            }
+          }
+          
+          const timeRemainingSeconds = timeRemainingMinutes * 60;
+          console.log(`Time remaining: ${timeRemainingMinutes} minutes (${timeRemainingSeconds} seconds)`);
+          
+          // Set period information
+          setPeriodInfo({
+            currentPeriod: periodRange,
+            currentPeriodNumber: (currentPeriodIndex + 1).toString(),
+            timeRemaining: timeRemainingSeconds,
+            currentTime: currentTimeStr,
+            periodsPerDay: transactionsPerDay,
+            workingHours: workingHours,
+          });
+          
+          setCurrentPeriod((currentPeriodIndex + 1).toString());
+          setTimeRemaining(timeRemainingSeconds);
+          
+          // Cache the current period
+          localStorage.setItem("currentPeriod", (currentPeriodIndex + 1).toString());
+          
+        } else {
+          // Not in any period
+          setPeriodInfo({
+            currentPeriod: "No Active Period",
+            currentPeriodNumber: "0",
+            timeRemaining: 0,
+            currentTime: currentTimeStr,
+            periodsPerDay: transactionsPerDay,
+            workingHours: workingHours,
+          });
+          setCurrentPeriod("0");
+          setTimeRemaining(0);
+          console.log("Not in any active period");
+        }
       } else {
+        // No periods available
         setPeriodInfo({
-          currentPeriod: "",
+          currentPeriod: "No Period Data",
           currentPeriodNumber: "0",
           timeRemaining: 0,
           currentTime: new Date().toLocaleTimeString([], {
@@ -224,21 +311,29 @@ const Dashboard = () => {
         });
         setCurrentPeriod("0");
         setTimeRemaining(0);
-
-        // Still try global periods as fallback
-        fetchGlobalPeriodInfo();
+        setPeriodTimes([]);
+        setIsWithinWorkingHours(false);
       }
     } catch (error) {
       console.error("Error fetching user period data:", error);
-      fetchGlobalPeriodInfo(); // Fallback to global period info
+      // Set default values
+      setPeriodInfo({
+        currentPeriod: "Error Loading Periods",
+        currentPeriodNumber: "0",
+        timeRemaining: 0,
+        currentTime: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+        periodsPerDay: 0,
+        workingHours: 0,
+      });
+      setCurrentPeriod("0");
+      setTimeRemaining(0);
+      setPeriodTimes([]);
+      setIsWithinWorkingHours(false);
     }
-  };
-
-  /**
-   * Fallback to fetch global period information when user-specific periods are unavailable
-   */
-  const fetchGlobalPeriodInfo = async () => {
-    // ... (existing code)
   };
 
   /**
@@ -295,9 +390,7 @@ const Dashboard = () => {
   };
 
   /**
-   * Fetch tasks for the current period and task group
-   * @param groupId The task group identifier
-   * @param periodNumber The current period number
+   * Fetch tasks for the current period
    */
   const fetchTasks = async () => {
     try {
@@ -306,7 +399,7 @@ const Dashboard = () => {
         setIsLoading(true);
       }
 
-      // Get tasks for the specific period and task group
+      // Get tasks for the specific period
       const tasksResponse = await fetch(
         `http://localhost:5001/getTasks?periodNumber=${currentPeriod}`
       );
@@ -478,27 +571,24 @@ const Dashboard = () => {
           Welcome {localUserData?.name || "Guest"}
         </h1>
 
-  {/* Loading overlay that ensures content is visible behind it */}
-{isLoading && (
-  <>
-    {/* Fixed position transparent overlay with reduced opacity */}
-    <div className="fixed inset-0 bg-gray-100 opacity-70 z-10"></div>
-    
-    {/* Centered spinner container */}
-    <div className="fixed inset-0 flex items-center justify-center z-20 pointer-events-none">
-      <div className="">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 512 512"
-          className="w-12 h-12 animate-spin fill-[#28a05c]"
-          aria-hidden="true"
-        >
-          <path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z" />
-        </svg>
-      </div>
-    </div>
-  </>
-)}
+        {/* Loading overlay */}
+        {isLoading && (
+          <>
+            <div className="fixed inset-0 bg-gray-100 opacity-70 z-10"></div>
+            <div className="fixed inset-0 flex items-center justify-center z-20 pointer-events-none">
+              <div className="">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 512 512"
+                  className="w-12 h-12 animate-spin fill-[#28a05c]"
+                  aria-hidden="true"
+                >
+                  <path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z" />
+                </svg>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Show Financial Summary if tab is selected */}
         {activeTab === "financialSummary" && localFinancialData && (
@@ -507,16 +597,20 @@ const Dashboard = () => {
             currentPeriod={currentPeriod}
             totalPeriods={periodInfo?.periodsPerDay || 0}
             timeRemaining={timeRemaining}
+            periodTimes={periodTimes}
+            isWithinWorkingHours={isWithinWorkingHours}
           />
         )}
 
-        {/* Task List Section - show even during loading */}
+        {/* Task List Section */}
         {activeTab === "tasks" && (
           <TaskList
             tasks={tasks}
             selectedPeriod={currentPeriod}
             onTaskAction={handleTaskAction}
             timeRemaining={timeRemaining}
+            totalPeriods={periodInfo?.periodsPerDay || 0}
+             isWithinWorkingHours={isWithinWorkingHours}
           />
         )}
       </div>
