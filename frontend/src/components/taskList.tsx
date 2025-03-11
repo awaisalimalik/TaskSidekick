@@ -130,7 +130,7 @@ const TaskList: React.FC<TaskListProps> = ({
   };
 
   return (
-   <div className="bg-white shadow-md rounded-lg p-3 sm:p-4 mt-4 sm:mt-6">
+   <div className="bg-white shadow-md rounded-lg p-2 sm:p-4 mt-4 sm:mt-6">
       <h2 className="text-lg sm:text-xl font-semibold mb-2">
         Tasks (Period {selectedPeriod})
       </h2>
@@ -174,75 +174,68 @@ const TaskList: React.FC<TaskListProps> = ({
           Tasks {hasPeriods ? `(Period ${selectedPeriod})` : ""}
         </h2>
 
-        {/* Task Table - Make it responsive with a scrollable container */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[640px]">
-            <thead>
-              <tr className="bg-gray-200 text-left">
-                <th className="p-2 border text-xs sm:text-sm">Task Label</th>
-                <th className="p-2 border text-xs sm:text-sm">Stock</th>
-                <th className="p-2 border text-xs sm:text-sm">Type</th>
-                <th className="p-2 border text-xs sm:text-sm">Price</th>
-                <th className="p-2 border text-xs sm:text-sm">Extra</th>
-                <th className="p-2 border text-xs sm:text-sm">Quantity</th>
-                <th className="p-2 border text-xs sm:text-sm">Total Price</th>
-                <th className="p-2 border text-xs sm:text-sm">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTasks.length > 0 ? (
-                filteredTasks.map((task, index) => (
-                  <tr
-                    key={task.id || index}
-                    className="border-b hover:bg-gray-100"
-                  >
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm">
-                      {task.taskLabel || `Task ${index + 1}`}
-                    </td>
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm">{task.stock || "-"}</td>
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm">{task.type || "-"}</td>
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm">
-                      ${(task.price || 0).toFixed(2)}
-                    </td>
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm truncate max-w-[80px] sm:max-w-[120px]">{task.extra || "-"}</td>
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm">{task.quantity || 0}</td>
-                    <td className="p-2 sm:p-3 border text-xs sm:text-sm">
-                      ${(task.totalPrice || 0).toFixed(2)}
-                    </td>
-                    <td className="p-2 sm:p-3 border">
-                      <button
-                        className="bg-blue-500 hover:bg-blue-600 active:bg-[#6dad70] cursor-pointer text-white px-2 py-1 rounded text-xs sm:text-sm"
-                        onClick={() => handleAcknowledge(task)}
-                      >
-                        Ack
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={8} className="p-3 text-center text-gray-500 text-xs sm:text-sm">
-                    {hasPeriods
-                      ? "No tasks available for this period."
-                      : "No tasks available. Periods need to be configured to view tasks."}
-                  </td>
-                </tr>
-              )}
+        <div className="overflow-x-auto md:overflow-visible">
+  <div className="w-full">
+    <table className="w-full  ">
+      <thead>
+        <tr className="bg-gray-200 text-left">
+          <th className="p-0 text-xs sm:text-sm">Task Label</th>
+          <th className="p-1 text-xs sm:text-sm">Stock</th>
+          <th className="p-1 text-xs sm:text-sm">Type</th>
+          <th className="p-1 text-xs sm:text-sm">Price</th>
+          <th className="p-1 text-xs sm:text-sm">Extra</th>
+          <th className="p-1 text-xs sm:text-sm">Quantity</th>
+          <th className="p-1 text-xs sm:text-sm">Total Price</th>
+         </tr>
+      </thead>
+      <tbody>
+        {filteredTasks.length > 0 ? (
+          filteredTasks.map((task, index) => (
+            <tr
+              key={task.id || index}
+              className="hover:bg-gray-100"
+            >
+              <td className="p-0 sm:p-0 text-xs sm:text-sm">
+                {task.taskLabel || `Task ${index + 1}`}
+              </td>
+              <td className="p-0 sm:p-0 text-xs sm:text-sm">{task.stock || "-"}</td>
+              <td className="p-0 sm:p-0 text-xs sm:text-sm">{task.type || "-"}</td>
+              <td className="p-0 sm:p-0 text-xs sm:text-sm">
+                ${(task.price || 0).toFixed(2)}
+              </td>
+              <td className="p-0 sm:p-0 text-xs sm:text-sm truncate max-w-[80px] sm:max-w-[120px]">{task.extra || "-"}</td>
+              <td className="p-0 sm:p-0 text-xs sm:text-sm">{task.quantity || 0}</td>
+              <td className="p-0 sm:p-0 text-xs sm:text-sm">
+                ${(task.totalPrice || 0).toFixed(2)}
+              </td>
+            
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td colSpan={8} className="p-3 text-center text-gray-500 text-xs sm:text-sm">
+              {hasPeriods
+                ? "No tasks available for this period."
+                : "No tasks available. Periods need to be configured to view tasks."}
+            </td>
+          </tr>
+        )}
 
-              {filteredTasks.length > 0 && (
-                <tr className="bg-gray-100">
-                  <td colSpan={6} className="p-2 sm:p-3 text-right font-medium text-xs sm:text-sm">
-                    Total:
-                  </td>
-                  <td className="p-2 sm:p-3 border font-bold text-xs sm:text-sm">
-                    ${totalCost.toFixed(2)}
-                  </td>
-                  <td className="p-2 sm:p-3 border"></td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {filteredTasks.length > 0 && (
+          <tr>
+            <td colSpan={6} className="p-1 sm:p-2 text-right font-medium text-xs sm:text-sm">
+              Total:
+            </td>
+            <td className="p-1 sm:p-1 font-bold text-xs sm:text-sm">
+              ${totalCost.toFixed(2)}
+            </td>
+            <td className="p-1 sm:p-2"></td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
 
         {filteredTasks.length > 0 && (
           <div className="mt-4 text-left">
