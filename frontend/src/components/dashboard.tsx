@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
@@ -11,8 +10,9 @@ interface PeriodInfo {
   currentPeriodNumber: string;
   timeRemaining: number;
   currentTime: string;
-  periodsPerDay?: number;
-  workingHours?: number;
+  periodsPerDay: number;
+  workingHours: number;
+  transactionPerDay?: number;
 }
 
 const Dashboard = () => {
@@ -28,6 +28,8 @@ const Dashboard = () => {
   const [periodTimes, setPeriodTimes] = useState<string[]>([]);
   const [isWithinWorkingHours, setIsWithinWorkingHours] = useState<boolean>(false);
   const [periodDataLoading, setPeriodDataLoading] = useState<boolean>(true);
+  const [transactionPerDay, setTransactionPerDay] = useState<number>(4); // Default to 4
+  const [allPeriodsCount, setAllPeriodsCount] = useState<number>(0); // Track total defined periods
   const navigate = useNavigate();
 
   /**
@@ -118,7 +120,7 @@ const Dashboard = () => {
     };
     
     loadFromLocalStorage();
-  }, []);
+  }, [navigate]);
 
   // Replace the period cycling effect with one that checks periodically
   useEffect(() => {
@@ -129,24 +131,26 @@ const Dashboard = () => {
           if (prev <= 1) {
             // When time expires, refresh period info
             if (localUserData) {
-              fetchUserPeriodInfo(localUserData.id);
+              // Pass false to indicate this is not an automatic refresh
+              // We want to show loading when period actually expires
+              fetchUserPeriodInfo(localUserData.id, false);
             }
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-
+  
       return () => clearInterval(timer); // Cleanup interval on unmount
     }
   }, [periodInfo, localUserData]);
 
-  // Add a new effect that periodically refreshes period info
   useEffect(() => {
     // Refresh period info every minute to handle period transitions
     if (localUserData) {
       const periodUpdateTimer = setInterval(() => {
-        fetchUserPeriodInfo(localUserData.id);
+        // Pass true to indicate this is an automatic refresh
+        fetchUserPeriodInfo(localUserData.id, true);
       }, 60 * 1000); // Check every minute
       
       return () => clearInterval(periodUpdateTimer);
@@ -157,30 +161,62 @@ const Dashboard = () => {
    * Fetch period information specific to the user
    * @param userId The user's unique identifier
    */
-  const fetchUserPeriodInfo = async (userId: string) => {
-    try {
-      // Set period data loading to true before fetching
+ // Add these console logs to the fetchUserPeriodInfo function in Dashboard.tsx
+// to debug where the transaction per day value is coming from
+
+const [isAutomaticRefresh, setIsAutomaticRefresh] = useState<boolean>(false);
+
+// Modify the fetchUserPeriodInfo function to accept a parameter indicating if it's an automatic refresh
+const fetchUserPeriodInfo = async (userId: string, isAutomatic: boolean = false) => {
+  try {
+    // Only show loading indicator if it's not an automatic refresh
+    if (!isAutomatic) {
       setPeriodDataLoading(true);
+    }
+    
+    // Set the state to track whether this is an automatic refresh
+    setIsAutomaticRefresh(isAutomatic);
+    
+    // Use the existing getPeriods endpoint
+    const response = await fetch(
+      `http://localhost:5001/getPeriods?userId=${userId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error fetching period data: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Debug logs for period data
+    console.log("===== PERIOD DATA DEBUG =====");
+    console.log("Raw backend period data:", data);
+    console.log("Transaction per day from API:", data.transactionPerDay);
+    console.log("All periods from API:", data.periods);
+    console.log("Total periods count:", data.allPeriodsCount);
+    console.log("============================");
+
+    if (data.success && data.periods && data.periods.length > 0) {
+      // Get the transaction per day value from the API response
+      const apiTransactionPerDay = data.transactionPerDay || 4; // Default to 4 if not provided
+      console.log(`Setting transaction per day to: ${apiTransactionPerDay}`);
+      setTransactionPerDay(apiTransactionPerDay);
       
-      // Use the existing getPeriods endpoint
-      const response = await fetch(
-        `http://localhost:5001/getPeriods?userId=${userId}`
-      );
-
-      if (!response.ok) {
-        throw new Error(`Error fetching period data: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      // Get total number of periods defined
+      const totalDefinedPeriods = data.allPeriodsCount || data.periods.length;
+      console.log(`Setting all periods count to: ${totalDefinedPeriods}`);
+      setAllPeriodsCount(totalDefinedPeriods);
       
-      console.log("Backend period data:", data);
-      console.log("Periods array:", data.periods);
-
-      if (data.success && data.periods && data.periods.length > 0) {
-        const transactionsPerDay = data.periods.length;
+      // Rest of the function remains the same...
+        console.log(`Transaction per day: ${apiTransactionPerDay}, Total defined periods: ${totalDefinedPeriods}`);
+        
+        // Store all periods but we will only treat the first N as active
+        // where N equals the transaction per day value
         setPeriodTimes(data.periods);
         
-        console.log(`Found ${transactionsPerDay} periods:`, data.periods);
+        // We'll only use the active periods for calculations (limited by transaction per day)
+        const activePeriods = data.periods.slice(0, apiTransactionPerDay);
+        console.log(`Active periods (${activePeriods.length}):`, activePeriods);
         
         // Get current time
         const now = new Date();
@@ -195,15 +231,15 @@ const Dashboard = () => {
         // Always consider as within working hours for 24/7 operation
         setIsWithinWorkingHours(true);
         
-        // Calculate period durations based on transactions per day
+        // Calculate period durations based on transaction per day
         const workingHours = 8; // Always use 8-hour workday
-        const hoursPerPeriod = workingHours / transactionsPerDay;
+        const hoursPerPeriod = workingHours / apiTransactionPerDay;
         const minutesPerPeriod = hoursPerPeriod * 60;
         
         console.log(`Hours per period: ${hoursPerPeriod}, Minutes per period: ${minutesPerPeriod}`);
         
         // Convert period times to minutes
-        const periodStartTimes: number[] = data.periods.map((time: string): number => convertTimeStringToMinutes(time));
+        const periodStartTimes: number[] = activePeriods.map((time: string): number => convertTimeStringToMinutes(time));
         
         // Calculate period end times (start time + duration)
         const periodEndTimes = periodStartTimes.map(startTime => 
@@ -269,16 +305,21 @@ const Dashboard = () => {
           const timeRemainingSeconds = timeRemainingMinutes * 60;
           console.log(`Time remaining: ${timeRemainingMinutes} minutes (${timeRemainingSeconds} seconds)`);
           
+          // Check if the current period is within the active periods based on transaction per day
+          const isActiveTransaction = currentPeriodIndex < apiTransactionPerDay;
+          
           // Set period information
           setPeriodInfo({
             currentPeriod: periodRange,
             currentPeriodNumber: (currentPeriodIndex + 1).toString(),
-            timeRemaining: timeRemainingSeconds,
+            timeRemaining: isActiveTransaction ? timeRemainingSeconds : 0, // Only set time remaining if it's an active transaction
             currentTime: currentTimeStr,
-            periodsPerDay: transactionsPerDay,
+            periodsPerDay: apiTransactionPerDay,  // Active periods count (limited by transaction per day)
             workingHours: workingHours,
+            transactionPerDay: apiTransactionPerDay,
           });
           
+          // Set current period - this is the absolute period number regardless of transaction per day
           setCurrentPeriod((currentPeriodIndex + 1).toString());
           setTimeRemaining(timeRemainingSeconds);
           
@@ -292,8 +333,9 @@ const Dashboard = () => {
             currentPeriodNumber: "0",
             timeRemaining: 0,
             currentTime: currentTimeStr,
-            periodsPerDay: transactionsPerDay,
+            periodsPerDay: apiTransactionPerDay,
             workingHours: workingHours,
+            transactionPerDay: apiTransactionPerDay,
           });
           setCurrentPeriod("0");
           setTimeRemaining(0);
@@ -315,6 +357,7 @@ const Dashboard = () => {
           }),
           periodsPerDay: 0,
           workingHours: 0,
+          transactionPerDay: 4,
         });
         setCurrentPeriod("0");
         setTimeRemaining(0);
@@ -338,6 +381,7 @@ const Dashboard = () => {
         }),
         periodsPerDay: 0,
         workingHours: 0,
+        transactionPerDay: 4,
       });
       setCurrentPeriod("0");
       setTimeRemaining(0);
@@ -374,6 +418,11 @@ const Dashboard = () => {
       const financialData = await financialResponse.json();
 
       if (financialData.success) {
+        // Get transaction per day value from the user data response
+        if (financialData.transactionPerDay) {
+          setTransactionPerDay(financialData.transactionPerDay);
+        }
+        
         setLocalFinancialData({
           allowance: financialData.financial.allowance || 0,
           commission: financialData.financial.commission || 0,
@@ -528,6 +577,7 @@ const Dashboard = () => {
               body: JSON.stringify({
                 userId: localUserData.id,
                 taskId: task.id,
+                currentPeriod: currentPeriod,
                 quantity: task.quantity || 1,
               }),
             }

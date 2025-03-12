@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 
 interface Task {
@@ -24,6 +23,8 @@ interface TaskListProps {
   totalPeriods: number;
   isWithinWorkingHours: boolean;
   loading: boolean;
+  transactionPerDay?: number; // Added transaction per day property
+  allPeriodsCount?: number; // Total number of periods defined (may be greater than active periods)
 }
 
 const TaskList: React.FC<TaskListProps> = ({
@@ -32,7 +33,10 @@ const TaskList: React.FC<TaskListProps> = ({
   onTaskAction,
   timeRemaining: externalTimeRemaining,
   totalPeriods = 0,
-   isWithinWorkingHours = false,
+  isWithinWorkingHours = false,
+  loading = false,
+  transactionPerDay = 4, // Default to 4 if not provided
+  allPeriodsCount = 0, // Total number of defined periods
 }) => {
   // Initialize with external time or 0 if not provided
   const [timeRemaining, setTimeRemaining] = useState<number>(
@@ -41,21 +45,31 @@ const TaskList: React.FC<TaskListProps> = ({
 
   // Check if the user has periods and if we're in an active period
   const hasPeriods = totalPeriods > 0;
-  const isActivePeriod = selectedPeriod !== "0" && isWithinWorkingHours;
+  
+  // Current period number as integer
+  const currentPeriodNumber = parseInt(selectedPeriod) || 0;
+  
+  // Period is only considered active if:
+  // 1. It's not "0" (indicating no active period)
+  // 2. We're within working hours
+  // 3. The current period number is within the transaction per day limit
+  const isActivePeriod = selectedPeriod !== "0" && 
+                          isWithinWorkingHours && 
+                          currentPeriodNumber <= transactionPerDay;
 
   // Update internal time when external time changes
   useEffect(() => {
     if (externalTimeRemaining !== undefined) {
       setTimeRemaining(externalTimeRemaining);
     } else if (hasPeriods && isActivePeriod) {
-      // Calculate period duration based on total periods (8 working hours / number of periods)
-      const periodDurationHours = 8 / totalPeriods;
+      // Calculate period duration based on transaction per day (8 working hours / transaction per day)
+      const periodDurationHours = 8 / transactionPerDay;
       setTimeRemaining(periodDurationHours * 60 * 60);
     } else {
       // No periods or outside working hours, set to 0
       setTimeRemaining(0);
     }
-  }, [externalTimeRemaining, selectedPeriod, hasPeriods, isActivePeriod, totalPeriods]);
+  }, [externalTimeRemaining, selectedPeriod, hasPeriods, isActivePeriod, transactionPerDay]);
 
   // Only use internal timer if no external time is provided
   useEffect(() => {
@@ -82,8 +96,8 @@ const TaskList: React.FC<TaskListProps> = ({
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Calculate period duration in hours
-  const periodDurationHours = hasPeriods ? 8 / totalPeriods : 0;
+  // Calculate period duration in hours (8 working hours / transaction per day)
+  const periodDurationHours = hasPeriods ? (8 / transactionPerDay) : 0;
   const periodDurationSeconds = periodDurationHours * 60 * 60;
 
   // Progress bar width calculation
@@ -96,9 +110,6 @@ const TaskList: React.FC<TaskListProps> = ({
         )
       )
     : 0;
-
-  // Get current period time range
-   
 
   // Get tasks for the selected period and ensure they have all necessary fields
   const filteredTasks = tasks
@@ -145,15 +156,23 @@ const TaskList: React.FC<TaskListProps> = ({
     <div className="bg-white shadow-md rounded-lg p-2 sm:p-4 mt-4 sm:mt-6">
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-lg sm:text-xl font-semibold">
-          Tasks {isActivePeriod ? `(Period ${selectedPeriod}/${totalPeriods})` : ""}
+          Tasks {selectedPeriod !== "0" ? `(Period ${selectedPeriod}/${allPeriodsCount > 0 ? allPeriodsCount : totalPeriods})` : ""}
         </h2>
         {!hasPeriods ? (
           <span className="bg-red-100 text-red-800 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
             No Periods
           </span>
-        ) : !isActivePeriod ? (
+        ) : !isWithinWorkingHours ? (
           <span className="bg-gray-100 text-gray-700 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
             Outside Working Hours
+          </span>
+        ) : currentPeriodNumber > transactionPerDay ? (
+          <span className="bg-amber-100 text-amber-800 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
+            Inactive Period
+          </span>
+        ) : selectedPeriod === "0" ? (
+          <span className="bg-gray-100 text-gray-700 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
+            No  Period
           </span>
         ) : (
          null
@@ -171,10 +190,18 @@ const TaskList: React.FC<TaskListProps> = ({
               <div className="font-medium text-sm sm:text-base">Time Remaining: 00:00:00</div>
               <div className="text-xs text-gray-500"> </div>
             </div>
-          ) : !isActivePeriod ? (
+          ) : !isWithinWorkingHours ? (
             <div className="text-left p-1">
               <div className="font-medium text-sm sm:text-base">Outside Working Hours (9:00 - 17:00)</div>
-               
+            </div>
+          ) : currentPeriodNumber > transactionPerDay ? (
+            <div className="text-left p-1">
+              <div className="font-medium text-sm sm:text-base text-amber-800">
+                Inactive Period (Exceeds Transaction Per Day Limit)
+              </div>
+              <div className="text-xs text-amber-600 mt-1">
+                Only the first {transactionPerDay} of {allPeriodsCount} periods are active based on Transaction/day setting
+              </div>
             </div>
           ) : (
             <>
@@ -182,8 +209,9 @@ const TaskList: React.FC<TaskListProps> = ({
                 <div className="font-medium text-sm sm:text-base">
                   Time Remaining: {formatTimeRemaining(timeRemaining)}
                 </div>
-                
               </div>
+              
+             
               <div className="w-full bg-gray-200 h-4 sm:h-5 mt-2 sm:mt-3 mb-1 overflow-hidden ">
                 <div
                   className="bg-green-500 h-4 sm:h-5  "
@@ -237,8 +265,10 @@ const TaskList: React.FC<TaskListProps> = ({
                   <td colSpan={7} className="p-3 text-center text-gray-500 text-xs sm:text-sm">
                     {!hasPeriods
                       ? "No tasks available. Periods need to be configured to view tasks."
-                      : !isActivePeriod
+                      : !isWithinWorkingHours
                       ? "No tasks available outside working hours."
+                      : currentPeriodNumber > transactionPerDay
+                      ? `Period ${selectedPeriod} is inactive due to transaction per day limit (${transactionPerDay}).`
                       : "No tasks available for this period."}
                   </td>
                 </tr>

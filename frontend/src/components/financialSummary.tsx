@@ -1,3 +1,5 @@
+// Update the FinancialSummary component to handle the silent refresh
+
 import React, { useEffect, useState } from "react";
 
 interface FinancialData {
@@ -11,11 +13,13 @@ interface FinancialSummaryProps {
   financialData: FinancialData;
   currentPeriod: string;
   totalPeriods: number;
-  timeRemaining?: number; // Made optional like in TaskList
+  timeRemaining?: number;
   periodTimes?: string[];
   isWithinWorkingHours?: boolean;
-  loading?: boolean; // General loading state for the component
-  periodDataLoading?: boolean; // Separate loading state specifically for period data
+  loading?: boolean;
+  periodDataLoading?: boolean;
+  transactionPerDay?: number;
+  allPeriodsCount?: number;
 }
 
 const FinancialSummary: React.FC<FinancialSummaryProps> = ({
@@ -24,30 +28,52 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   totalPeriods,
   timeRemaining: externalTimeRemaining,
   isWithinWorkingHours = false,
-   periodDataLoading = false, // Default to false and control independently
+  periodDataLoading = false,
+  transactionPerDay = 4,
+  allPeriodsCount = 0,
 }) => {
   // Initialize with external time or 0 if not provided
   const [timeRemaining, setTimeRemaining] = useState<number>(
     externalTimeRemaining || 0
   );
+  
+  // Track previous values to avoid unnecessary UI updates
+  const [prevPeriodInfo, setPrevPeriodInfo] = useState({
+    currentPeriod,
+    timeRemaining: externalTimeRemaining || 0,
+  });
 
   // Check if the user has periods - explicitly check if totalPeriods is 0
   const hasPeriods = totalPeriods > 0;
-  const isActivePeriod = currentPeriod !== "0" && isWithinWorkingHours;
+  
+  // Period is only considered active if:
+  // 1. It's not "0" (indicating no active period)
+  // 2. We're within working hours
+  // 3. The current period number is within the transaction per day limit
+  const currentPeriodNumber = parseInt(currentPeriod) || 0;
+  const isActivePeriod = currentPeriod !== "0" && 
+                          isWithinWorkingHours && 
+                          currentPeriodNumber <= transactionPerDay;
 
   // Update internal time when external time changes
   useEffect(() => {
     if (externalTimeRemaining !== undefined) {
       setTimeRemaining(externalTimeRemaining);
     } else if (hasPeriods && isActivePeriod) {
-      // Calculate period duration based on total periods (8 working hours / number of periods)
-      const periodDurationHours = 8 / totalPeriods;
+      // Calculate period duration based on transaction per day (8 working hours / transaction per day)
+      const periodDurationHours = 8 / transactionPerDay;
       setTimeRemaining(periodDurationHours * 60 * 60);
     } else {
       // No periods or outside working hours, set to 0
       setTimeRemaining(0);
     }
-  }, [externalTimeRemaining, currentPeriod, hasPeriods, isActivePeriod, totalPeriods]);
+    
+    // Update previous values for comparison
+    setPrevPeriodInfo({
+      currentPeriod,
+      timeRemaining: externalTimeRemaining || 0,
+    });
+  }, [externalTimeRemaining, currentPeriod, hasPeriods, isActivePeriod, transactionPerDay]);
 
   // Only use internal timer if no external time is provided
   useEffect(() => {
@@ -74,8 +100,8 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Calculate period duration in hours (8 working hours / number of periods)
-  const periodDurationHours = hasPeriods ? 8 / totalPeriods : 0;
+  // Calculate period duration in hours (8 working hours / transaction per day)
+  const periodDurationHours = hasPeriods ? (8 / transactionPerDay) : 0;
   const periodDurationSeconds = periodDurationHours * 60 * 60;
 
   // Calculate time progress percentage within the current period
@@ -99,7 +125,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
 
   // Render different content based on loading state for period section
   const renderPeriodContent = () => {
-    // Always show loading spinner if periodDataLoading is true
+    // Show loading spinner if periodDataLoading is true (now only during manual refreshes)
     if (periodDataLoading) {
       return (
         <div className="relative min-h-[60px] flex items-center justify-center">
@@ -127,12 +153,26 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         <>
           <div className="font-medium">
             Active Period: {currentPeriod}/{totalPeriods}
+            {allPeriodsCount > transactionPerDay && (
+              <span className="text-xs ml-2 text-gray-600">
+                (Only first {transactionPerDay} of {allPeriodsCount} periods are active)
+              </span>
+            )}
           </div>
+          
+         
+          
+          {/* Show inactive message if period exists but is beyond transaction per day limit */}
+          {currentPeriodNumber > transactionPerDay && currentPeriodNumber <= allPeriodsCount && (
+            <div className="text-xs text-amber-600 mt-1 font-semibold">
+              This period exists but is inactive due to the transaction per day limit ({transactionPerDay})
+            </div>
+          )}
 
           {/* Time Progress Bar */}
           <div className="w-full bg-gray-200 rounded-full h-2.5 mt-3 mb-1 overflow-hidden">
             <div
-              className="bg-green-500 h-2.5 rounded-full"
+              className="bg-green-500 h-2.5 rounded-full transition-all duration-1000"
               style={{ width: `${timeProgressPercentage}%` }}
             ></div>
           </div>
@@ -183,7 +223,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
             </span>
           ) : !isActivePeriod ? (
             <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-              No Periods
+              No Active Period
             </span>
           ) : (
             <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
