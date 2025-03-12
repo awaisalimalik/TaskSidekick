@@ -137,11 +137,20 @@ const fetchAndProcessData = async () => {
               };
               data.push(item);
             } else {
-              // For other sheets, use your existing approach
+              // For other sheets
               const item = {};
 
               for (let j = 0; j < headers.length; j++) { 
                   item[headers[j]] = row[j];
+              }
+
+              // Special handling for budget sheet to ensure transaction per day is properly captured
+              if (sheetName === "budget") {
+                // Check if we have Transaction /day column (with space)
+                if (item["Transaction /day"] !== undefined) {
+                  // Create an alias without space for compatibility
+                  item["Transaction/day"] = item["Transaction /day"];
+                }
               }
 
               // Only add row if it's not empty
@@ -257,6 +266,9 @@ app.get("/getUserData", async (req, res) => {
     const activeTaskGroups = [];
     const budgetData = data.budget;
 
+    // Track the transaction per day values from all active budget rows
+    let transactionPerDayValues = [];
+
     // Check the binary flags (Activatetask, Activatetask1, etc.)
     for (let i = 0; i <= 9; i++) {
       const flagName = i === 0 ? "Activatetask" : `Activatetask${i}`;
@@ -264,6 +276,36 @@ app.get("/getUserData", async (req, res) => {
       if (user[flagName] === "1" && i < budgetData.length) {
         // This budget record is active for the user (the flag is set to 1)
         const budgetRow = budgetData[i];
+        
+        // Try to get transaction per day value with possible field names
+        let transactionPerDay = 0;
+        
+        // First try with space
+        if (budgetRow["Transaction /day"] !== undefined) {
+          transactionPerDay = parseInt(budgetRow["Transaction /day"] || "0", 10);
+        }
+        // Fall back to without space
+        else if (budgetRow["Transaction/day"] !== undefined) {
+          transactionPerDay = parseInt(budgetRow["Transaction/day"] || "0", 10);
+        }
+        
+        if (transactionPerDay > 0) {
+          transactionPerDayValues.push(transactionPerDay);
+        }
+
+        // Get all periods from the budget row
+        const allPeriods = [];
+        for (let j = 1; j <= 8; j++) {
+          const periodKey = `Period ${j}`;
+          if (budgetRow[periodKey]) {
+            allPeriods.push(budgetRow[periodKey]);
+          }
+        }
+        
+        // Only include periods up to the transaction per day limit
+        const limitedPeriods = transactionPerDay > 0 
+          ? allPeriods.slice(0, transactionPerDay) 
+          : allPeriods;
 
         activeTaskGroups.push({
           order: i,
@@ -274,15 +316,18 @@ app.get("/getUserData", async (req, res) => {
           monthlyAllocation: parseFloat(
             budgetRow["monthly allocation Monthly Budget"] || "0"
           ),
-          periods: [
-            budgetRow["Period 1"],
-            budgetRow["Period 2"],
-            budgetRow["Period 3"],
-            budgetRow["Period 4"],
-          ].filter(Boolean), // Remove empty periods
+          transactionPerDay: transactionPerDay,
+          periods: limitedPeriods,
+          allPeriodsCount: allPeriods.length
         });
       }
     }
+
+    // Get the maximum transaction per day value from all active budget rows
+    // Default to 4 if not found (8 hours / 4 = 2 hours per period)
+    const maxTransactionPerDay = transactionPerDayValues.length > 0 
+      ? Math.max(...transactionPerDayValues) 
+      : 4;
 
     // Calculate total allocation and remaining budget
     const totalAllocation = activeTaskGroups.reduce(
@@ -302,6 +347,7 @@ app.get("/getUserData", async (req, res) => {
         remaining: remaining,
       },
       activeTaskGroups: activeTaskGroups,
+      transactionPerDay: maxTransactionPerDay
     });
   } catch (error) {
     console.error("Error fetching user data:", error);
@@ -489,8 +535,6 @@ app.post("/acknowledgeTask", async (req, res) => {
       }
     }
 
-  
-
     // Log the acknowledgment
     await logAcknowledgment(user["user id*"], task, newCommission, taskCost, currentPeriod);
 
@@ -519,7 +563,6 @@ app.post("/acknowledgeTask", async (req, res) => {
   }
 });
 
-
 /**
  * Get available periods for a user
  */
@@ -547,8 +590,12 @@ app.get("/getPeriods", async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    // Use a Set to avoid duplicate periods
-    const uniquePeriods = new Set();
+    // Track all available periods and their information
+    const allPeriodsMap = new Map(); // Use a Map to maintain order and avoid duplicates
+    
+    // Track the transaction per day values
+    let transactionPerDayValues = [];
+    let allPeriodsCount = 0;
 
     // Check the binary flags (Activatetask, Activatetask1, etc.)
     for (let i = 0; i <= 9; i++) {
@@ -557,26 +604,75 @@ app.get("/getPeriods", async (req, res) => {
       if (user[flagName] === "1" && i < budgetData.length) {
         // This budget record is active for the user
         const budgetRow = budgetData[i];
-
-        // Add unique periods from this budget row
-        ["Period 1", "Period 2", "Period 3", "Period 4"].forEach(
-          (periodKey) => {
-            if (budgetRow[periodKey]) {
-              uniquePeriods.add(budgetRow[periodKey].trim()); // Trim for consistency
-            }
+        
+        console.log(`Budget row ${i} active, Label: ${budgetRow["Label"]}`);
+        
+        // Try to get transaction per day value with both possible field names
+        let transactionPerDay = 0;
+        
+        // First try with space
+        if (budgetRow["Transaction /day"] !== undefined) {
+          transactionPerDay = parseInt(budgetRow["Transaction /day"] || "0", 10);
+          console.log(`Found Transaction /day (with space): ${transactionPerDay}`);
+        }
+        // Fall back to without space
+        else if (budgetRow["Transaction/day"] !== undefined) {
+          transactionPerDay = parseInt(budgetRow["Transaction/day"] || "0", 10);
+          console.log(`Found Transaction/day (without space): ${transactionPerDay}`);
+        }
+        
+        if (transactionPerDay > 0) {
+          transactionPerDayValues.push(transactionPerDay);
+        }
+        
+        // Get all periods from this budget row
+        const periodsInRow = [];
+        for (let j = 1; j <= 8; j++) {
+          const periodKey = `Period ${j}`;
+          if (budgetRow[periodKey]) {
+            periodsInRow.push({
+              order: j,
+              time: budgetRow[periodKey].trim()
+            });
           }
-        );
+        }
+        
+        // Count all periods in this row
+        if (periodsInRow.length > allPeriodsCount) {
+          allPeriodsCount = periodsInRow.length;
+        }
+        
+        // Only include periods up to the transaction per day limit
+        const activePeriods = transactionPerDay > 0 
+          ? periodsInRow.slice(0, transactionPerDay) 
+          : periodsInRow;
+        
+        console.log(`Row has ${periodsInRow.length} periods, using ${activePeriods.length} based on transaction per day: ${transactionPerDay}`);
+        
+        // Add active periods to the map
+        activePeriods.forEach(period => {
+          allPeriodsMap.set(period.time, period.order);
+        });
       }
     }
 
-    // Convert Set to sorted array
-    const sortedPeriods = [...uniquePeriods].sort();
+    // Convert to sorted array of period times
+    const sortedPeriods = Array.from(allPeriodsMap.keys()).sort();
+    
+    // Get the maximum transaction per day value
+    const maxTransactionPerDay = transactionPerDayValues.length > 0 
+      ? Math.max(...transactionPerDayValues) 
+      : 4;
 
-    console.log("Final periods:", sortedPeriods);
+    console.log(`Final transaction per day: ${maxTransactionPerDay}`);
+    console.log(`Active periods (${sortedPeriods.length}): ${sortedPeriods.join(', ')}`);
+    console.log(`Total periods found across all budget rows: ${allPeriodsCount}`);
 
     return res.json({
       success: true,
       periods: sortedPeriods,
+      transactionPerDay: maxTransactionPerDay,
+      allPeriodsCount: allPeriodsCount
     });
   } catch (error) {
     console.error("Error fetching periods:", error);
@@ -586,41 +682,112 @@ app.get("/getPeriods", async (req, res) => {
   }
 });
 
+/**
+ * Debug endpoint to see the raw budget sheet data
+ */
+app.get("/debugBudgetSheet", async (req, res) => {
+  try {
+    // Get auth client
+    const authClient = await getAuthClient();
+    const sheets = google.sheets({ version: "v4", auth: authClient });
 
-  // Log acknowledgment in history sheet
-  const logAcknowledgment = async (userId, task, newCommission, taskCost, currentPeriod) => {
-    try {
-      const authClient = await getAuthClient();
-      const sheets = google.sheets({ version: "v4", auth: authClient });
+    // Get the raw budget sheet data
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "budget",
+    });
 
-      const timestamp = new Date().toISOString();
-      const historyRow = [
-        timestamp,          // PURCHASE DATE
-        userId,             // PURCHASE BY
-        task.board,      // DEPARTMENT
-        task.stock,    // ITEMS
-        task.quantity,           // Qty
-        task.type,    // GROUP
-        "",                 // SECTION (empty as not provided)
-        `Period ${currentPeriod}`,                 // TITLE (empty as not provided)
-        taskCost,           // TOTAL
-        newCommission,     // COMMISSION
-        "",                 // NOTES (empty as not provided)
-        "",                 // APPROVED BY (empty as not provided)
-      ];
-
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID,
-        range: "history",
-        valueInputOption: "RAW",
-        resource: {
-          values: [historyRow],
-        },
+    const rows = response.data.values;
+    
+    if (!rows || rows.length === 0) {
+      return res.json({
+        success: false,
+        message: "No data found in the budget sheet"
       });
-    } catch (error) {
-      console.error("Error logging acknowledgment:", error);
     }
-  };
+    
+    // Get the headers (first row)
+    const headers = rows[0];
+    
+    // Identify important column indices
+    const columnFIndex = 5; // F is the 6th column (0-indexed)
+    
+    // Process the data
+    const processedData = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row.length > 0) {
+        // Create an object with each header as a key
+        const rowData = {};
+        for (let j = 0; j < headers.length; j++) {
+          if (j < row.length) {
+            rowData[headers[j]] = row[j];
+          } else {
+            rowData[headers[j]] = "";
+          }
+        }
+        
+        // Add the raw column F value
+        if (row.length > columnFIndex) {
+          rowData["raw_column_F"] = row[columnFIndex];
+        } else {
+          rowData["raw_column_F"] = "No data";
+        }
+        
+        processedData.push(rowData);
+      }
+    }
+    
+    return res.json({
+      success: true,
+      headers: headers,
+      columnFHeader: headers[columnFIndex],
+      rowCount: rows.length - 1, // Exclude header row
+      data: processedData
+    });
+  } catch (error) {
+    console.error("Error fetching budget sheet data:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error fetching budget sheet data"
+    });
+  }
+});
+
+// Log acknowledgment in history sheet
+const logAcknowledgment = async (userId, task, newCommission, taskCost, currentPeriod) => {
+  try {
+    const authClient = await getAuthClient();
+    const sheets = google.sheets({ version: "v4", auth: authClient });
+
+    const timestamp = new Date().toISOString();
+    const historyRow = [
+      timestamp,          // PURCHASE DATE
+      userId,             // PURCHASE BY
+      task.board,         // DEPARTMENT
+      task.stock,         // ITEMS
+      task.quantity,      // Qty
+      task.type,          // GROUP
+      "",                 // SECTION (empty as not provided)
+      `Period ${currentPeriod}`, // TITLE
+      taskCost,           // TOTAL
+      newCommission,      // COMMISSION
+      "",                 // NOTES (empty as not provided)
+      "",                 // APPROVED BY (empty as not provided)
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "history",
+      valueInputOption: "RAW",
+      resource: {
+        values: [historyRow],
+      },
+    });
+  } catch (error) {
+    console.error("Error logging acknowledgment:", error);
+  }
+};
 
 // Start Server
 const PORT = process.env.PORT || 5001;
