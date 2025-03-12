@@ -14,7 +14,8 @@ interface FinancialSummaryProps {
   timeRemaining?: number; // Made optional like in TaskList
   periodTimes?: string[];
   isWithinWorkingHours?: boolean;
-  loading?: boolean; // Add loading prop
+  loading?: boolean; // General loading state for the component
+  periodDataLoading?: boolean; // Separate loading state specifically for period data
 }
 
 const FinancialSummary: React.FC<FinancialSummaryProps> = ({
@@ -23,7 +24,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
   totalPeriods,
   timeRemaining: externalTimeRemaining,
   isWithinWorkingHours = false,
-  loading = false,
+   periodDataLoading = false, // Default to false and control independently
 }) => {
   // Initialize with external time or 0 if not provided
   const [timeRemaining, setTimeRemaining] = useState<number>(
@@ -96,6 +97,54 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
     });
   };
 
+  // Render different content based on loading state for period section
+  const renderPeriodContent = () => {
+    // Always show loading spinner if periodDataLoading is true
+    if (periodDataLoading) {
+      return (
+        <div className="relative min-h-[60px] flex items-center justify-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 512 512"
+            className="w-6 h-6 animate-spin fill-[#28a05c]"
+            aria-hidden="true"
+          >
+            <path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z" />
+          </svg>
+        </div>
+      );
+    } else if (!hasPeriods || !isActivePeriod) {
+      return (
+        <div className="text-left py-4">
+          <div className="text-gray-500 font-medium mb-2">
+            Active Period: 0/0
+          </div>
+          <div className="font-medium">Time Remaining: 00:00:00</div>
+        </div>
+      );
+    } else {
+      return (
+        <>
+          <div className="font-medium">
+            Active Period: {currentPeriod}/{totalPeriods}
+          </div>
+
+          {/* Time Progress Bar */}
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-3 mb-1 overflow-hidden">
+            <div
+              className="bg-green-500 h-2.5 rounded-full"
+              style={{ width: `${timeProgressPercentage}%` }}
+            ></div>
+          </div>
+
+          <div className="font-medium">
+            Time Remaining: {formatTimeRemaining(timeRemaining)}
+          </div>
+        </>
+      );
+    }
+  };
+
   return (
     <div className="bg-white shadow-md rounded-lg p-4 mt-4">
       <h2 className="text-xl font-semibold">Financial Summary</h2>
@@ -126,17 +175,15 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
       <div className="mt-4">
         <div className="flex justify-between items-center pt-2 pb-4">
           <h2 className="text-xl font-semibold">Period Information</h2>
-          {loading ? (
-            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-              Loading...
-            </span>
+          {periodDataLoading ? (
+            null
           ) : !hasPeriods ? (
             <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
               No Periods
             </span>
           ) : !isActivePeriod ? (
-            <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-              Outside Working Hours
+            <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+              No Periods
             </span>
           ) : (
             <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
@@ -146,52 +193,7 @@ const FinancialSummary: React.FC<FinancialSummaryProps> = ({
         </div>
 
         <div className={`bg-gray-100 p-4 rounded-xl ${!hasPeriods ? "border border-gray-300" : ""}`}>
-          {loading ? (
-            <div className="py-4 flex flex-col items-center justify-center">
-              <div className="animate-pulse flex space-x-4">
-                <div className="h-4 bg-blue-200 rounded w-24"></div>
-                <div className="h-4 bg-blue-200 rounded w-24"></div>
-              </div>
-              <div className="animate-pulse mt-4">
-                <div className="h-4 bg-blue-200 rounded w-56"></div>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-3 mb-1 overflow-hidden">
-                <div className="bg-blue-200 h-2.5 rounded-full animate-pulse"></div>
-              </div>
-            </div>
-          ) : !hasPeriods ? (
-            <div className="text-left py-4">
-              <div className="text-gray-500 font-medium mb-2">
-                Active Period: 0/0
-              </div>
-              <div className="font-medium">Time Remaining: 00:00:00</div>
-            </div>
-          ) : !isActivePeriod ? (
-            <div className="text-left py-4">
-              <div className="text-gray-500 font-medium mb-2">
-                No Active Period ({totalPeriods} periods/day)
-              </div>
-              <div className="font-medium">Outside Working Hours (9:00 - 17:00)</div>
-            </div>
-          ) : (
-            <>
-              <div className="font-medium">
-                Active Period: {currentPeriod}/{totalPeriods}
-              </div>
-
-              {/* Time Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-3 mb-1 overflow-hidden">
-                <div
-                  className="bg-green-500 h-2.5 rounded-full"
-                  style={{ width: `${timeProgressPercentage}%` }}
-                ></div>
-              </div>
-
-              <div className="font-medium">
-                Time Remaining: {formatTimeRemaining(timeRemaining)}
-              </div>
-            </>
-          )}
+          {renderPeriodContent()}
         </div>
       </div>
     </div>

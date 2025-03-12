@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 
 interface Task {
@@ -16,13 +17,13 @@ interface Task {
 }
 
 interface TaskListProps {
-  tasks: Task[];
+  tasks: any[];
   selectedPeriod: string;
-  onTaskAction: (task: Task | null, action: string) => void;
-  timeRemaining?: number;
-  totalPeriods?: number;
-  periodTimes?: string[];
-  isWithinWorkingHours?: boolean;
+  onTaskAction: (task: any, action: string) => Promise<void>;
+  timeRemaining: number;
+  totalPeriods: number;
+  isWithinWorkingHours: boolean;
+  loading: boolean;
 }
 
 const TaskList: React.FC<TaskListProps> = ({
@@ -31,8 +32,7 @@ const TaskList: React.FC<TaskListProps> = ({
   onTaskAction,
   timeRemaining: externalTimeRemaining,
   totalPeriods = 0,
-  periodTimes = [],
-  isWithinWorkingHours = false,
+   isWithinWorkingHours = false,
 }) => {
   // Initialize with external time or 0 if not provided
   const [timeRemaining, setTimeRemaining] = useState<number>(
@@ -97,6 +97,9 @@ const TaskList: React.FC<TaskListProps> = ({
       )
     : 0;
 
+  // Get current period time range
+   
+
   // Get tasks for the selected period and ensure they have all necessary fields
   const filteredTasks = tasks
     .filter((task) => task.period === selectedPeriod)
@@ -153,9 +156,7 @@ const TaskList: React.FC<TaskListProps> = ({
             Outside Working Hours
           </span>
         ) : (
-          <span className="bg-green-100 text-green-800 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium">
-            Active Period
-          </span>
+         null
         )}
       </div>
 
@@ -163,11 +164,11 @@ const TaskList: React.FC<TaskListProps> = ({
         <div
           className={`${
             !hasPeriods || !isActivePeriod ? "border border-gray-300 bg-gray-100" : ""
-          } pt-2 rounded-lg`}
+          } p-2 rounded-lg`}
         >
           {!hasPeriods ? (
             <div className="text-left p-1">
-              <div className="font-medium text-sm sm:text-base">No periods  </div>
+              <div className="font-medium text-sm sm:text-base">Time Remaining: 00:00:00</div>
               <div className="text-xs text-gray-500"> </div>
             </div>
           ) : !isActivePeriod ? (
@@ -183,9 +184,9 @@ const TaskList: React.FC<TaskListProps> = ({
                 </div>
                 
               </div>
-              <div className="w-full bg-gray-200 h-4 sm:h-5 mt-2 sm:mt-3 mb-1 overflow-hidden rounded-full">
+              <div className="w-full bg-gray-200 h-4 sm:h-5 mt-2 sm:mt-3 mb-1 overflow-hidden ">
                 <div
-                  className="bg-green-500 h-4 sm:h-5 rounded-full"
+                  className="bg-green-500 h-4 sm:h-5  "
                   style={{ width: `${timeProgressPercentage}%` }}
                 ></div>
               </div>

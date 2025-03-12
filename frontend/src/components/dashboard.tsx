@@ -27,6 +27,7 @@ const Dashboard = () => {
   const [periodInfo, setPeriodInfo] = useState<PeriodInfo | null>(null);
   const [periodTimes, setPeriodTimes] = useState<string[]>([]);
   const [isWithinWorkingHours, setIsWithinWorkingHours] = useState<boolean>(false);
+  const [periodDataLoading, setPeriodDataLoading] = useState<boolean>(true);
   const navigate = useNavigate();
 
   /**
@@ -158,6 +159,9 @@ const Dashboard = () => {
    */
   const fetchUserPeriodInfo = async (userId: string) => {
     try {
+      // Set period data loading to true before fetching
+      setPeriodDataLoading(true);
+      
       // Use the existing getPeriods endpoint
       const response = await fetch(
         `http://localhost:5001/getPeriods?userId=${userId}`
@@ -295,6 +299,9 @@ const Dashboard = () => {
           setTimeRemaining(0);
           console.log("Not in any active period");
         }
+        
+        // Set period data loading to false after all processing is complete
+        setPeriodDataLoading(false);
       } else {
         // No periods available
         setPeriodInfo({
@@ -313,6 +320,9 @@ const Dashboard = () => {
         setTimeRemaining(0);
         setPeriodTimes([]);
         setIsWithinWorkingHours(false);
+        
+        // Set period data loading to false
+        setPeriodDataLoading(false);
       }
     } catch (error) {
       console.error("Error fetching user period data:", error);
@@ -333,6 +343,9 @@ const Dashboard = () => {
       setTimeRemaining(0);
       setPeriodTimes([]);
       setIsWithinWorkingHours(false);
+      
+      // Set period data loading to false even on error
+      setPeriodDataLoading(false);
     }
   };
 
@@ -571,7 +584,7 @@ const Dashboard = () => {
           Welcome {localUserData?.name || "Guest"}
         </h1>
 
-        {/* Loading overlay */}
+        {/* Loading overlay - main app loading */}
         {isLoading && (
           <>
             <div className="fixed inset-0 bg-gray-100 opacity-70 z-10"></div>
@@ -599,6 +612,8 @@ const Dashboard = () => {
             timeRemaining={timeRemaining}
             periodTimes={periodTimes}
             isWithinWorkingHours={isWithinWorkingHours}
+            loading={isLoading}
+            periodDataLoading={periodDataLoading}
           />
         )}
 
@@ -610,7 +625,8 @@ const Dashboard = () => {
             onTaskAction={handleTaskAction}
             timeRemaining={timeRemaining}
             totalPeriods={periodInfo?.periodsPerDay || 0}
-             isWithinWorkingHours={isWithinWorkingHours}
+            isWithinWorkingHours={isWithinWorkingHours}
+            loading={periodDataLoading}
           />
         )}
       </div>
